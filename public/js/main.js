@@ -7,6 +7,7 @@ import { licensesView } from './views/licenses.js';
 import { activityView } from './views/activity.js';
 import { apiDocsView } from './views/apidocs.js';
 import { profileView } from './views/profile.js';
+import { accessView } from './views/access.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -18,6 +19,7 @@ const NAV = [
   { path: 'generate', label: () => 'Gerar licença', icon: 'key', view: generateView },
   { path: 'licenses', label: (u) => (u.role === 'ADMIN' ? 'Todas as licenças' : 'Minhas licenças'), icon: 'list', view: licensesView },
   { path: 'activity', label: () => 'Atividades', icon: 'activity', view: activityView, admin: true },
+  { path: 'access', label: () => 'Histórico de acessos', icon: 'globe', view: accessView, admin: true },
   { path: 'api', label: () => 'API', icon: 'code', view: apiDocsView },
   { path: 'profile', label: () => 'Perfil', icon: 'user', view: profileView },
 ];

@@ -22,7 +22,7 @@ function sanitizeSearch(value) {
   if (typeof value !== 'string') return '';
   return value
     .normalize('NFC')
-    .replace(/[^\p{L}\p{N} ._-]/gu, '')
+    .replace(/[^\p{L}\p{N} ._:-]/gu, '')
     .trim()
     .slice(0, 40);
 }

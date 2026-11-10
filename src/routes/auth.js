@@ -5,6 +5,7 @@ const { getAdmin, newAnonClient } = require('../lib/supabase');
 const { parse, schemas } = require('../lib/validation');
 const { toEmail } = require('../lib/license');
 const { logActivity } = require('../lib/activity');
+const { recordLogin, findProfileByUsername } = require('../lib/accessLog');
 const { loginLimiter } = require('../middleware/security');
 const { PROFILE_COLS } = require('../middleware/auth');
 
@@ -62,6 +63,12 @@ router.post(
         actorUsername: username.slice(0, 64),
         ip: req.ip,
       });
+      await recordLogin(req, {
+        user: await findProfileByUsername(username),
+        username,
+        success: false,
+        reason: 'INVALID_CREDENTIALS',
+      });
       // Mensagem genérica: não revela se o usuário existe.
       throw new AppError(401, 'INVALID_CREDENTIALS', 'Usuário ou senha inválidos.');
     }
@@ -71,11 +78,13 @@ router.post(
     if (profile.status !== 'ACTIVE') {
       // Só chegamos aqui com a senha correta, então informar a suspensão não vaza nada.
       getAdmin().auth.admin.signOut(data.session.access_token).catch(() => {});
+      await recordLogin(req, { user: profile, username, success: false, reason: 'SUSPENDED' });
       throw new AppError(403, 'ACCOUNT_SUSPENDED', 'Sua conta está suspensa. Contate o administrador.');
     }
 
     setSessionCookies(res, data.session);
     await logActivity({ actor: profile, action: 'LOGIN', ip: req.ip });
+    await recordLogin(req, { user: profile, username, success: true, reason: 'OK' });
     res.json({ user: profile });
   })
 );

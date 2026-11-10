@@ -346,6 +346,48 @@ router.post(
   })
 );
 
+/* --------------------------- Histórico de acessos -------------------------- */
+
+const ACCESS_COLS =
+  'id, user_id, username, success, reason, ip, device, device_type, os, browser, country, region, city, flags, suspicious, created_at';
+
+// GET /api/admin/access-logs/summary — números do topo da tela (últimas 24 h)
+router.get(
+  '/access-logs/summary',
+  asyncHandler(async (req, res) => {
+    const { data, error } = await getAdmin().rpc('access_summary', { p_tz: config.timezone });
+    if (error) throwDb(error);
+    res.json({ summary: data });
+  })
+);
+
+// GET /api/admin/access-logs?search&filter=success|failed|suspicious&page&limit
+// Cada linha traz usuário, data/hora, IP, dispositivo, navegador e localização aproximada.
+router.get(
+  '/access-logs',
+  asyncHandler(async (req, res) => {
+    const { page, limit, search, filter } = parse(schemas.accessList, req.query);
+    const from = (page - 1) * limit;
+
+    let q = getAdmin()
+      .from('login_events')
+      .select(ACCESS_COLS, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + limit - 1);
+
+    const s = sanitizeSearch(search);
+    if (s) q = q.or(`username.ilike.%${s}%,ip.ilike.%${s}%`);
+    if (filter === 'success') q = q.eq('success', true);
+    if (filter === 'failed') q = q.eq('success', false);
+    if (filter === 'suspicious') q = q.eq('suspicious', true);
+
+    const { data, error, count } = await q;
+    if (error) throwDb(error);
+    res.json({ items: data, page, limit, total: count ?? 0 });
+  })
+);
+
 /* ------------------------------- Atividades ------------------------------- */
 
 // GET /api/admin/activity?action&page&limit

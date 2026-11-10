@@ -12,6 +12,7 @@ Frontend em HTML/CSS/JS (módulos ES, sem build), backend Node.js + Express, ban
 - Créditos: 1 dia = 1, 7 dias = 4, 30 dias = 10 (tabela `license_plans`). Geração **atômica**: licenças + débito na mesma transação, com trava de linha e chave de idempotência.
 - Licenças: código aleatório de 80 bits (`XXXX-XXXX-XXXX-XXXX`), ATIVA/EXPIRADA/REVOGADA, copiar individual/todas, histórico.
 - API pública `POST /api/licenses/validate` com limite de requisições.
+- **Histórico de acessos** (admin): cada login e tentativa falha registra usuário, data/hora, IP, dispositivo, navegador e localização aproximada, com destaque para acessos suspeitos.
 - Auditoria completa (`activity_logs`) e extrato de créditos (`credit_transactions`).
 
 ## Estrutura
@@ -39,6 +40,7 @@ key-manager/
    1. `supabase/migrations/20260101000001_schema.sql`
    2. `supabase/migrations/20260101000002_functions.sql`
    3. `supabase/migrations/20260101000003_rls.sql`
+   4. `supabase/migrations/20260101000004_access_logs.sql` (histórico de acessos)
 
    (Alternativa com a CLI: `supabase link --project-ref SEU_REF && supabase db push`.)
 3. Em **Authentication → Providers → Email**: mantenha **Email habilitado**. Você pode **desativar “Confirm email”** e **“Allow new users to sign up”** (cadastro público desligado — contas são criadas só pelo admin, via API de administração). Nenhum e-mail é enviado: o “usuário” é mapeado internamente para `usuario@AUTH_EMAIL_DOMAIN`.
@@ -86,6 +88,8 @@ Entre com o administrador, crie usuários em **Usuários → Novo usuário** e a
 | Último admin | Trigger impede remover/suspender/rebaixar o último ADMIN ativo. |
 
 ## 5. Operação
+
+- **Histórico de acessos contém dados pessoais (IP e localização).** Só administradores leem (RLS + rota protegida). Não há exclusão automática; para limpar registros antigos: `delete from public.login_events where created_at < now() - interval '180 days';`.
 
 - **Status das licenças** são calculados em tempo real (`licenses_view`); não há jobs para “expirar”.
 - **Excluir usuário** preserva licenças e auditoria (`user_id` vira nulo; `owner_username` permanece). Opcionalmente revoga as licenças ativas.

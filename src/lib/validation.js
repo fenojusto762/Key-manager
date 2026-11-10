@@ -108,6 +108,13 @@ const schemas = {
     user_id: emptyToUndefined(z.string().uuid()),
   }),
 
+  accessList: z.object({
+    page: z.coerce.number().int().min(1).max(100000).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    search: emptyToUndefined(z.string().max(80)),
+    filter: emptyToUndefined(z.enum(['success', 'failed', 'suspicious'])),
+  }),
+
   activityList: z.object({
     page: z.coerce.number().int().min(1).max(100000).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20),

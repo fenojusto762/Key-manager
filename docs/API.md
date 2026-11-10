@@ -173,6 +173,10 @@ O papel é verificado no banco a cada requisição. Usuários comuns recebem `40
 | GET | `/api/admin/licenses?status&search&user_id&page&limit` | Todas as licenças |
 | POST | `/api/admin/licenses/:id/revoke` | Revoga uma licença |
 | GET | `/api/admin/activity?action&page&limit` | Trilha de auditoria |
+| GET | `/api/admin/access-logs?search&filter&page&limit` | Histórico de acessos (`filter`: `success`, `failed` ou `suspicious`; `search`: usuário ou IP) |
+| GET | `/api/admin/access-logs/summary` | Totais das últimas 24 h: logins, falhas, suspeitos, IPs distintos |
+
+Cada item de `access-logs` traz: `username`, `success`, `reason` (`OK`, `INVALID_CREDENTIALS`, `SUSPENDED`), `ip`, `device`, `device_type`, `os`, `browser`, `country`, `region`, `city`, `flags`, `suspicious` e `created_at`. A localização é aproximada (cabeçalhos de geolocalização da Vercel). Sinais em `flags`: `NEW_IP`, `NEW_DEVICE`, `NEW_COUNTRY`, `AFTER_FAILURES`, `BRUTE_FORCE`, `UNKNOWN_USER`. Um acesso é `suspicious` quando tem `NEW_COUNTRY`, `AFTER_FAILURES`, `BRUTE_FORCE` ou `NEW_IP` + `NEW_DEVICE` juntos.
 
 Regras: não é possível suspender/excluir a si mesmo nem o último administrador ativo; créditos nunca ficam negativos; senhas nunca são retornadas.
 
