@@ -20,12 +20,18 @@ router.patch(
   '/',
   asyncHandler(async (req, res) => {
     const { display_name } = parse(schemas.profilePatch, req.body);
-    const { data, error } = await getAdmin()
-      .from('profiles')
-      .update({ display_name: display_name || null })
-      .eq('id', req.user.id)
-      .select(PROFILE_COLS)
-      .single();
+    // Dados do Master só mudam pela função dedicada do banco (gatilho bloqueia o resto).
+    if (req.user.role === 'MASTER') {
+      const { error: mErr } = await getAdmin().rpc('master_update_profile', {
+        p_master_id: req.user.id,
+        p_display_name: display_name || null,
+      });
+      if (mErr) throwDb(mErr);
+    }
+    const q = getAdmin().from('profiles');
+    const { data, error } = await (req.user.role === 'MASTER'
+      ? q.select(PROFILE_COLS).eq('id', req.user.id).single()
+      : q.update({ display_name: display_name || null }).eq('id', req.user.id).select(PROFILE_COLS).single());
     if (error) throwDb(error);
     await logActivity({ actor: req.user, action: 'PROFILE_UPDATED', target: req.user, ip: req.ip });
     res.json({ user: data });

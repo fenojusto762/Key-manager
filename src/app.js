@@ -55,7 +55,7 @@ app.use('/api', csrfGuard, apiLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/me', authenticate, meRoutes);
 app.use('/api/licenses', authenticate, licenseRoutes);
-app.use('/api/admin', authenticate, requireAdmin, adminRoutes); // papel ADMIN conferido no banco a cada requisição
+app.use('/api/admin', authenticate, requireAdmin, adminRoutes); // papel ADMIN/MASTER conferido no banco a cada requisição
 
 app.use('/api', (req, res, next) => next(new AppError(404, 'NOT_FOUND', 'Rota não encontrada.')));
 

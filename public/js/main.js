@@ -1,5 +1,5 @@
 import { api, get, post, setSessionExpiredHandler, ApiError } from './api.js';
-import { esc, icon, initials, fmtInt, roleBadge, toast, skeletonPage } from './ui.js';
+import { isStaff, esc, icon, initials, fmtInt, roleBadge, toast, skeletonPage } from './ui.js';
 import { dashboardView } from './views/dashboard.js';
 import { usersView } from './views/users.js';
 import { generateView } from './views/generate.js';
@@ -14,17 +14,17 @@ const $ = (s) => document.querySelector(s);
 const state = { user: null, plans: [], maxQuantity: 100, cleanup: null, renderId: 0 };
 
 const NAV = [
-  { path: 'dashboard', label: (u) => (u.role === 'ADMIN' ? 'Dashboard' : 'Meu painel'), icon: 'dashboard', view: dashboardView },
+  { path: 'dashboard', label: (u) => (isStaff(u) ? 'Dashboard' : 'Meu painel'), icon: 'dashboard', view: dashboardView },
   { path: 'users', label: () => 'Usuários', icon: 'users', view: usersView, admin: true },
   { path: 'generate', label: () => 'Gerar licença', icon: 'key', view: generateView },
-  { path: 'licenses', label: (u) => (u.role === 'ADMIN' ? 'Todas as licenças' : 'Minhas licenças'), icon: 'list', view: licensesView },
+  { path: 'licenses', label: (u) => (isStaff(u) ? 'Todas as licenças' : 'Minhas licenças'), icon: 'list', view: licensesView },
   { path: 'activity', label: () => 'Atividades', icon: 'activity', view: activityView, admin: true },
   { path: 'access', label: () => 'Histórico de acessos', icon: 'globe', view: accessView, admin: true },
   { path: 'api', label: () => 'API', icon: 'code', view: apiDocsView },
   { path: 'profile', label: () => 'Perfil', icon: 'user', view: profileView },
 ];
 
-const visibleNav = () => NAV.filter((n) => !n.admin || state.user?.role === 'ADMIN');
+const visibleNav = () => NAV.filter((n) => !n.admin || isStaff(state.user));
 
 /* ------------------------------ Contexto --------------------------------- */
 const ctx = {
@@ -70,7 +70,7 @@ function renderChrome() {
   $('#sidebar').innerHTML = `
     <div class="brand"><span class="brand__mark" aria-hidden="true"></span><span class="brand__name">KEY<b>MANAGER</b></span></div>
     <nav class="nav">
-      <div class="nav__label">${u.role === 'ADMIN' ? 'Administração' : 'Painel'}</div>
+      <div class="nav__label">${isStaff(u) ? 'Administração' : 'Painel'}</div>
       ${visibleNav().map((n) => `<a href="#/${n.path}" data-nav="${n.path}" class="${n.path === path ? 'is-active' : ''}">${icon(n.icon)}<span>${esc(n.label(u))}</span></a>`).join('')}
     </nav>
     <div class="me-card">

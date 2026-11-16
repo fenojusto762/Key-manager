@@ -172,11 +172,14 @@ O papel é verificado no banco a cada requisição. Usuários comuns recebem `40
 | GET | `/api/admin/users/:id/transactions` | Extrato de créditos |
 | GET | `/api/admin/licenses?status&search&user_id&page&limit` | Todas as licenças |
 | POST | `/api/admin/licenses/:id/revoke` | Revoga uma licença |
+| PATCH | `/api/admin/users/:id/role` | `{ role: "ADMIN" \| "USER" }` — **somente MASTER** |
 | GET | `/api/admin/activity?action&page&limit` | Trilha de auditoria |
 | GET | `/api/admin/access-logs?search&filter&page&limit` | Histórico de acessos (`filter`: `success`, `failed` ou `suspicious`; `search`: usuário ou IP) |
 | GET | `/api/admin/access-logs/summary` | Totais das últimas 24 h: logins, falhas, suspeitos, IPs distintos |
 
 Cada item de `access-logs` traz: `username`, `success`, `reason` (`OK`, `INVALID_CREDENTIALS`, `SUSPENDED`), `ip`, `device`, `device_type`, `os`, `browser`, `country`, `region`, `city`, `flags`, `suspicious` e `created_at`. A localização é aproximada (cabeçalhos de geolocalização da Vercel). Sinais em `flags`: `NEW_IP`, `NEW_DEVICE`, `NEW_COUNTRY`, `AFTER_FAILURES`, `BRUTE_FORCE`, `UNKNOWN_USER`. Um acesso é `suspicious` quando tem `NEW_COUNTRY`, `AFTER_FAILURES`, `BRUTE_FORCE` ou `NEW_IP` + `NEW_DEVICE` juntos.
+
+Hierarquia **MASTER > ADMIN > USER**: ADMIN só administra contas USER (status, créditos, senha, exclusão); só o MASTER cria administradores e altera funções. Nenhuma rota altera o MASTER por outra pessoa (`403 MASTER_PROTECTED`); contra níveis iguais/superiores `403 HIERARCHY_FORBIDDEN`. A senha e os dados do Master mudam apenas por ele em `/api/me`.
 
 Regras: não é possível suspender/excluir a si mesmo nem o último administrador ativo; créditos nunca ficam negativos; senhas nunca são retornadas.
 
@@ -188,4 +191,4 @@ Regras: não é possível suspender/excluir a si mesmo nem o último administrad
 
 ## 7. Códigos de erro comuns
 
-`VALIDATION_ERROR` (400) · `UNAUTHENTICATED` / `SESSION_INVALID` (401) · `INSUFFICIENT_CREDITS` (402) · `FORBIDDEN` / `ACCOUNT_SUSPENDED` / `CSRF_REJECTED` (403) · `NOT_FOUND` / `USER_NOT_FOUND` / `LICENSE_NOT_FOUND` (404) · `USERNAME_TAKEN` / `LAST_ADMIN` / `ALREADY_REVOKED` (409) · `RATE_LIMITED` (429) · `INTERNAL_ERROR` (500).
+`VALIDATION_ERROR` (400) · `UNAUTHENTICATED` / `SESSION_INVALID` (401) · `INSUFFICIENT_CREDITS` (402) · `FORBIDDEN` / `ACCOUNT_SUSPENDED` / `CSRF_REJECTED` (403) · `NOT_FOUND` / `USER_NOT_FOUND` / `LICENSE_NOT_FOUND` (404) · `MASTER_PROTECTED` / `HIERARCHY_FORBIDDEN` / `ROLE_PROTECTED` (403) · `USERNAME_TAKEN` / `LAST_ADMIN` / `ALREADY_REVOKED` (409) · `RATE_LIMITED` (429) · `INTERNAL_ERROR` (500).

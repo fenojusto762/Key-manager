@@ -49,6 +49,10 @@ export async function usersView(root, ctx) {
       <thead><tr><th>Usuário</th><th>Função</th><th>Status</th><th class="right">Créditos</th><th>Cadastro</th><th></th></tr></thead>
       <tbody>${data.items.map((u) => {
         const self = u.id === ctx.user.id;
+        const me = ctx.user.role;
+        // Hierarquia (a decisão final é do servidor/banco): MASTER gerencia todos; ADMIN só USER.
+        const canManage = !self && u.role !== 'MASTER' && (me === 'MASTER' || (me === 'ADMIN' && u.role === 'USER'));
+        const canCredits = (me === 'MASTER' && true) || (me === 'ADMIN' && u.role === 'USER');
         return `<tr data-id="${esc(u.id)}">
           <td class="cell-main"><div class="user-cell"><span class="avatar avatar--sm">${esc(initials(u.username))}</span>
             <div><div class="user-cell__name">${esc(u.display_name || u.username)}${self ? ' <span class="muted">(você)</span>' : ''}</div><div class="user-cell__sub">@${esc(u.username)}</div></div></div></td>
@@ -58,12 +62,13 @@ export async function usersView(root, ctx) {
           <td data-label="Cadastro" class="nowrap muted">${esc(relTime(u.created_at))}</td>
           <td><div class="actions">
             <button class="icon-btn" data-act="details" title="Detalhes e histórico" aria-label="Detalhes">${icon('eye')}</button>
-            <button class="icon-btn icon-btn--ok" data-act="credits" title="Ajustar créditos" aria-label="Ajustar créditos">${icon('coins')}</button>
-            <button class="icon-btn" data-act="password" title="Redefinir senha" aria-label="Redefinir senha">${icon('lock')}</button>
-            ${self ? '' : u.status === 'ACTIVE'
+            ${canCredits ? `<button class="icon-btn icon-btn--ok" data-act="credits" title="Ajustar créditos" aria-label="Ajustar créditos">${icon('coins')}</button>` : ''}
+            ${canManage ? `<button class="icon-btn" data-act="password" title="Redefinir senha" aria-label="Redefinir senha">${icon('lock')}</button>` : ''}
+            ${me === 'MASTER' && canManage ? `<button class="icon-btn" data-act="role" title="Alterar função" aria-label="Alterar função">${icon('user')}</button>` : ''}
+            ${u.role === 'MASTER' ? `<span class="badge badge--ok badge--plain" title="Conta protegida: só o próprio Master pode alterá-la">Protegido</span>` : !canManage ? '' : u.status === 'ACTIVE'
               ? `<button class="icon-btn icon-btn--warn" data-act="suspend" title="Suspender" aria-label="Suspender">${icon('pause')}</button>`
               : `<button class="icon-btn icon-btn--ok" data-act="reactivate" title="Reativar" aria-label="Reativar">${icon('play')}</button>`}
-            ${self ? '' : `<button class="icon-btn icon-btn--bad" data-act="delete" title="Excluir" aria-label="Excluir">${icon('trash')}</button>`}
+            ${!canManage ? '' : `<button class="icon-btn icon-btn--bad" data-act="delete" title="Excluir" aria-label="Excluir">${icon('trash')}</button>`}
           </div></td></tr>`;
       }).join('')}</tbody></table></div>${pagerHtml({ page: data.page, limit: data.limit, total: data.total })}`;
     holder._items = new Map(data.items.map((u) => [u.id, u]));
@@ -81,7 +86,7 @@ export async function usersView(root, ctx) {
         ${field('n-name', 'Nome de exibição (opcional)', 'maxlength="80"')}
         ${field('n-pass', 'Senha', 'type="password" autocomplete="new-password" maxlength="72"', 'Mínimo de 8 caracteres.')}
         <div class="field field--row">
-          <label class="field" style="margin:0"><span>Função</span><select class="select" id="n-role"><option value="USER">USER</option><option value="ADMIN">ADMIN</option></select></label>
+          <label class="field" style="margin:0"><span>Função</span><select class="select" id="n-role"><option value="USER">USER</option>${ctx.user.role === 'MASTER' ? '<option value="ADMIN">ADMIN</option>' : ''}</select></label>
           <label class="field" style="margin:0"><span>Créditos iniciais</span><input class="input" id="n-credits" type="number" min="0" max="1000000" value="0"></label>
         </div></form>`,
       actions: [
@@ -146,6 +151,28 @@ export async function usersView(root, ctx) {
         if (!b) return;
         c.body.querySelectorAll('#c-op button').forEach((x) => x.classList.toggle('is-active', x === b));
       }),
+    });
+  }
+
+  function roleModal(u) {
+    openModal({
+      title: `Função de @${u.username}`,
+      html: `<p>Somente o Master altera funções. Administradores gerenciam apenas usuários comuns.</p>
+        <label class="field"><span>Função</span><select class="select" id="r-role"><option value="USER"${u.role === 'USER' ? ' selected' : ''}>USER</option><option value="ADMIN"${u.role === 'ADMIN' ? ' selected' : ''}>ADMIN</option></select></label>`,
+      actions: [
+        { label: 'Cancelar' },
+        {
+          label: 'Salvar', kind: 'primary',
+          onClick: async (c) => {
+            try {
+              await patch(`/admin/users/${u.id}/role`, { role: c.body.querySelector('#r-role').value });
+              c.close();
+              toast('Função atualizada.', 'ok');
+              load();
+            } catch (e) { c.setError(e.message); }
+          },
+        },
+      ],
     });
   }
 
@@ -260,6 +287,7 @@ export async function usersView(root, ctx) {
       details: () => detailsModal(u),
       credits: () => creditsModal(u),
       password: () => passwordModal(u),
+      role: () => roleModal(u),
       suspend: () => toggleStatus(u, 'SUSPENDED'),
       reactivate: () => toggleStatus(u, 'ACTIVE'),
       delete: () => deleteModal(u),

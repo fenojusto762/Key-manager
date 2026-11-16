@@ -4,7 +4,7 @@ import { esc, icon, fmtInt, fmtDate, timeLeft, debounce, pagerHtml, toast, copyT
 const LIMIT = 20;
 
 export async function licensesView(root, ctx) {
-  const isAdmin = ctx.user.role === 'ADMIN';
+  const isAdmin = ctx.user.role === 'ADMIN' || ctx.user.role === 'MASTER';
   const q = { page: 1, search: '', status: '' };
   let seq = 0;
 

@@ -24,6 +24,10 @@ const DB_ERRORS = {
   INVALID_AMOUNT: [400, 'Valor de créditos inválido.'],
   FORBIDDEN: [403, 'Acesso negado.'],
   LAST_ADMIN: [409, 'Não é possível remover ou suspender o último administrador ativo.'],
+  MASTER_PROTECTED: [403, 'A conta Master é protegida e não pode ser alterada por esta operação.'],
+  HIERARCHY_FORBIDDEN: [403, 'Você não tem permissão sobre esta conta (hierarquia: Master > Admin > Usuário).'],
+  ROLE_PROTECTED: [403, 'Funções só podem ser alteradas pelo Master.'],
+  MASTER_EXISTS: [409, 'Já existe um Master.'],
   CREDITS_PROTECTED: [403, 'Créditos só podem ser alterados por operações autorizadas.'],
   CODE_GENERATION_FAILED: [503, 'Não foi possível gerar códigos únicos. Tente novamente.'],
 };

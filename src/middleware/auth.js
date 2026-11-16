@@ -38,11 +38,21 @@ const authenticate = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const STAFF_ROLES = ['ADMIN', 'MASTER'];
+
+// MASTER > ADMIN > USER: o Master herda todas as permissões de administrador.
 function requireAdmin(req, res, next) {
-  if (req.user?.role !== 'ADMIN') {
+  if (!STAFF_ROLES.includes(req.user?.role)) {
     return next(new AppError(403, 'FORBIDDEN', 'Acesso restrito a administradores.'));
   }
   return next();
 }
 
-module.exports = { authenticate, requireAdmin, PROFILE_COLS };
+function requireMaster(req, res, next) {
+  if (req.user?.role !== 'MASTER') {
+    return next(new AppError(403, 'FORBIDDEN', 'Acesso restrito ao Master.'));
+  }
+  return next();
+}
+
+module.exports = { authenticate, requireAdmin, requireMaster, PROFILE_COLS };

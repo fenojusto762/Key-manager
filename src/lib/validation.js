@@ -66,6 +66,10 @@ const schemas = {
 
   resetPassword: z.object({ password }),
 
+  userRole: z.object({
+    role: z.enum(['ADMIN', 'USER'], { errorMap: () => ({ message: 'Função inválida.' }) }),
+  }),
+
   userStatus: z.object({
     status: z.enum(['ACTIVE', 'SUSPENDED'], { errorMap: () => ({ message: 'Status inválido.' }) }),
   }),

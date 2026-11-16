@@ -6,6 +6,7 @@ const { parse, schemas } = require('../lib/validation');
 const { toEmail, sanitizeSearch } = require('../lib/license');
 const { logActivity } = require('../lib/activity');
 const { listLicenses } = require('../lib/queries');
+const { requireMaster } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -29,6 +30,24 @@ async function isLastActiveAdmin(user) {
     .neq('id', user.id);
   if (error) throwDb(error);
   return (count ?? 0) === 0;
+}
+
+// Hierarquia MASTER > ADMIN > USER: o banco decide (assert_manage). Tentativas negadas ficam na auditoria.
+async function assertManage(req, target) {
+  const { error } = await getAdmin().rpc('assert_manage', { p_actor: req.user.id, p_target: target.id });
+  if (error) {
+    const msg = String(error.message || '');
+    if (msg.includes('MASTER_PROTECTED') || msg.includes('HIERARCHY_FORBIDDEN')) {
+      await logActivity({
+        actor: req.user,
+        action: 'HIERARCHY_DENIED',
+        target,
+        details: { reason: msg.includes('MASTER_PROTECTED') ? 'MASTER_PROTECTED' : 'HIERARCHY_FORBIDDEN' },
+        ip: req.ip,
+      }).catch(() => {});
+    }
+    throwDb(error);
+  }
 }
 
 /* ------------------------------- Dashboard -------------------------------- */
@@ -80,6 +99,9 @@ router.post(
   asyncHandler(async (req, res) => {
     const body = parse(schemas.createUser, req.body);
     const admin = getAdmin();
+    if (body.role !== 'USER' && req.user.role !== 'MASTER') {
+      throw new AppError(403, 'HIERARCHY_FORBIDDEN', 'Somente o Master pode criar administradores.');
+    }
 
     const { data: existing, error: existErr } = await admin
       .from('profiles')
@@ -116,7 +138,7 @@ router.post(
         id: userId,
         username: body.username,
         display_name: body.display_name || null,
-        role: body.role,
+        role: 'USER', // promoção a ADMIN só por set_user_role (Master), abaixo
         status: 'ACTIVE',
         credits: 0,
         created_by: req.user.id,
@@ -130,6 +152,16 @@ router.post(
     }
 
     let result = profile;
+    if (body.role === 'ADMIN') {
+      const { error: roleErr } = await admin.rpc('set_user_role', {
+        p_actor: req.user.id, p_target: userId, p_role: 'ADMIN', p_ip: req.ip ?? null,
+      });
+      if (roleErr) {
+        await rollback();
+        throwDb(roleErr);
+      }
+      result = { ...result, role: 'ADMIN' };
+    }
     if (body.credits > 0) {
       const { error: credErr } = await admin.rpc('adjust_credits', {
         p_user_id: userId,
@@ -142,7 +174,7 @@ router.post(
         await rollback(); // o perfil é removido em cascata
         throwDb(credErr);
       }
-      result = { ...profile, credits: body.credits };
+      result = { ...result, credits: body.credits };
     }
 
     await logActivity({
@@ -179,24 +211,18 @@ router.patch(
     const { id } = parse(schemas.idParam, req.params);
     const { status } = parse(schemas.userStatus, req.body);
     const user = await getUserOr404(id);
+    await assertManage(req, user);
 
-    if (status === 'SUSPENDED') {
-      if (id === req.user.id) {
-        throw new AppError(400, 'SELF_ACTION', 'Você não pode suspender a própria conta.');
-      }
-      if (await isLastActiveAdmin(user)) {
-        throw new AppError(409, 'LAST_ADMIN', 'Não é possível suspender o último administrador ativo.');
-      }
+    if (status === 'SUSPENDED' && (await isLastActiveAdmin(user))) {
+      throw new AppError(409, 'LAST_ADMIN', 'Não é possível suspender o último administrador ativo.');
     }
     if (user.status === status) return res.json({ user });
 
-    const { data, error } = await getAdmin()
-      .from('profiles')
-      .update({ status })
-      .eq('id', id)
-      .select(USER_COLS)
-      .single();
+    const { error } = await getAdmin().rpc('set_user_status', {
+      p_actor: req.user.id, p_target: id, p_status: status,
+    });
     if (error) throwDb(error);
+    const data = { ...user, status };
 
     await logActivity({
       actor: req.user,
@@ -205,6 +231,25 @@ router.patch(
       ip: req.ip,
     });
     res.json({ user: data });
+  })
+);
+
+// PATCH /api/admin/users/:id/role  { role: 'ADMIN' | 'USER' }  — SOMENTE o Master
+router.patch(
+  '/users/:id/role',
+  requireMaster,
+  asyncHandler(async (req, res) => {
+    const { id } = parse(schemas.idParam, req.params);
+    const { role } = parse(schemas.userRole, req.body);
+    const user = await getUserOr404(id);
+    if (user.role === 'MASTER') throw new AppError(403, 'MASTER_PROTECTED', 'A conta Master não pode ser alterada.');
+    if (id === req.user.id) throw new AppError(400, 'SELF_ACTION', 'Você não pode alterar a própria função.');
+
+    const { error } = await getAdmin().rpc('set_user_role', {
+      p_actor: req.user.id, p_target: id, p_role: role, p_ip: req.ip ?? null,
+    });
+    if (error) throwDb(error);
+    res.json({ user: { ...user, role } });
   })
 );
 
@@ -234,6 +279,7 @@ router.post(
     const { id } = parse(schemas.idParam, req.params);
     const { password } = parse(schemas.resetPassword, req.body);
     const user = await getUserOr404(id);
+    await assertManage(req, user); // Master: nunca; Admin: só USER; si mesmo: use /api/me/password
 
     const { error } = await getAdmin().auth.admin.updateUserById(id, { password });
     if (error) throw new AppError(400, 'PASSWORD_REJECTED', 'Senha rejeitada. Escolha uma senha mais forte.');
@@ -255,6 +301,7 @@ router.delete(
     if (id === req.user.id) {
       throw new AppError(400, 'SELF_ACTION', 'Você não pode excluir a própria conta.');
     }
+    await assertManage(req, user);
     if (await isLastActiveAdmin(user)) {
       throw new AppError(409, 'LAST_ADMIN', 'Não é possível excluir o último administrador ativo.');
     }

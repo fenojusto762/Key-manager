@@ -144,5 +144,5 @@ async function userDashboard(root, ctx) {
 }
 
 export function dashboardView(root, ctx) {
-  return ctx.user.role === 'ADMIN' ? adminDashboard(root, ctx) : userDashboard(root, ctx);
+  return (ctx.user.role === 'ADMIN' || ctx.user.role === 'MASTER') ? adminDashboard(root, ctx) : userDashboard(root, ctx);
 }

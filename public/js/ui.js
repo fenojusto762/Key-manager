@@ -107,10 +107,13 @@ export const userStatusBadge = (status) =>
   status === 'ACTIVE'
     ? '<span class="badge badge--ok">Ativo</span>'
     : '<span class="badge badge--bad">Suspenso</span>';
+export const isStaff = (u) => u?.role === 'ADMIN' || u?.role === 'MASTER';
 export const roleBadge = (role) =>
-  role === 'ADMIN'
-    ? '<span class="badge badge--info badge--plain">ADMIN</span>'
-    : '<span class="badge badge--muted badge--plain">USER</span>';
+  role === 'MASTER'
+    ? '<span class="badge badge--ok badge--plain">MASTER</span>'
+    : role === 'ADMIN'
+      ? '<span class="badge badge--info badge--plain">ADMIN</span>'
+      : '<span class="badge badge--muted badge--plain">USER</span>';
 
 /* ------------------------------- Toasts ---------------------------------- */
 export function toast(message, type = 'info') {
@@ -303,6 +306,9 @@ export const ACTION_LABELS = {
   LOGIN_FAILED: ['tentativa de login falhou', 'bad'],
   LOGOUT: ['saiu do sistema', ''],
   USER_CREATED: ['criou o usuário', 'ok'],
+  USER_ROLE_CHANGED: ['alterou a função de', 'warn'],
+  MASTER_ASSIGNED: ['foi definido como Master', 'ok'],
+  HIERARCHY_DENIED: ['teve uma ação negada pela hierarquia sobre', 'bad'],
   USER_DELETED: ['excluiu o usuário', 'bad'],
   USER_SUSPENDED: ['suspendeu o usuário', 'warn'],
   USER_REACTIVATED: ['reativou o usuário', 'ok'],

@@ -6,7 +6,8 @@ Frontend em HTML/CSS/JS (módulos ES, sem build), backend Node.js + Express, ban
 ## Recursos
 
 - Login com usuário e senha, sessão em cookies `httpOnly` + `SameSite=Strict` (tokens nunca ficam acessíveis ao JavaScript).
-- Dois níveis: **ADMIN** (tudo) e **USER** (apenas os próprios dados). O papel é lido do banco a cada requisição.
+- Hierarquia absoluta **MASTER > ADMIN > USER**. O papel é lido do banco a cada requisição.
+- **Dono Master**: conta única e permanente, com todas as permissões de administrador. Não pode ser excluída, suspensa, rebaixada, renomeada nem ter senha/saldo alterados por ninguém além dela mesma. Só o Master cria/rebaixa administradores. Admins gerenciam apenas USUÁRIOS. Aplicado por gatilhos e funções no Postgres, não só na interface.
 - Dashboard admin: usuários, créditos totais, licenças geradas/ativas/expiradas, últimos usuários, atividades e gráficos.
 - Gestão de usuários: criar, excluir, pesquisar, suspender/reativar, ajustar créditos, redefinir senha, histórico.
 - Créditos: 1 dia = 1, 7 dias = 4, 30 dias = 10 (tabela `license_plans`). Geração **atômica**: licenças + débito na mesma transação, com trava de linha e chave de idempotência.
@@ -41,6 +42,7 @@ key-manager/
    2. `supabase/migrations/20260101000002_functions.sql`
    3. `supabase/migrations/20260101000003_rls.sql`
    4. `supabase/migrations/20260101000004_access_logs.sql` (histórico de acessos)
+   5. `supabase/migrations/20260101000005_master_owner.sql` (Dono Master)
 
    (Alternativa com a CLI: `supabase link --project-ref SEU_REF && supabase db push`.)
 3. Em **Authentication → Providers → Email**: mantenha **Email habilitado**. Você pode **desativar “Confirm email”** e **“Allow new users to sign up”** (cadastro público desligado — contas são criadas só pelo admin, via API de administração). Nenhum e-mail é enviado: o “usuário” é mapeado internamente para `usuario@AUTH_EMAIL_DOMAIN`.
@@ -54,7 +56,7 @@ key-manager/
 cd key-manager
 npm install
 cp .env.example .env        # preencha SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY
-npm run create-admin        # cria o primeiro ADMIN (pergunta usuário e senha)
+npm run create-master       # define o Dono MASTER (pergunta usuário e senha)
 npm start                   # http://localhost:3000
 npm test                    # testes unitários
 ```
@@ -68,7 +70,7 @@ Entre com o administrador, crie usuários em **Usuários → Novo usuário** e a
 3. Em **Settings → Environment Variables**, cadastre (Production, e Preview se quiser):
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `AUTH_EMAIL_DOMAIN`, `APP_TIMEZONE`, `NODE_ENV=production`.
 4. **Deploy**. O `vercel.json` serve `public/` como estático e encaminha `/api/*` para `api/index.js`.
-5. Crie o primeiro admin rodando `npm run create-admin` **localmente** com o `.env` apontando para o mesmo projeto Supabase.
+5. Defina o Master rodando `npm run create-master` **localmente** com o `.env` apontando para o mesmo projeto Supabase.
 6. Teste: `https://SEU-APP.vercel.app/api/health` deve retornar `"ok": true`.
 
 ## 4. Segurança — o que foi implementado
@@ -86,6 +88,17 @@ Entre com o administrador, crie usuários em **Usuários → Novo usuário** e a
 | Headers | Helmet + CSP restritiva (sem scripts inline), HSTS, `frame-ancestors 'none'`. |
 | Auditoria | Toda operação administrativa, login (inclusive falhas), geração e alteração de senha grava em `activity_logs`. |
 | Último admin | Trigger impede remover/suspender/rebaixar o último ADMIN ativo. |
+
+## 4.1 Hierarquia (Master > Admin > Usuário)
+
+| Ação | MASTER | ADMIN | USER |
+|---|---|---|---|
+| Ver painel, licenças, atividades e acessos | ✔ | ✔ | só o próprio |
+| Criar usuários / ajustar créditos / suspender / excluir / redefinir senha de **USER** | ✔ | ✔ | ✘ |
+| Criar, promover, rebaixar, suspender, excluir, ajustar créditos e redefinir senha de **ADMIN** | ✔ | ✘ | ✘ |
+| Qualquer ação sobre o **MASTER** | só ele mesmo (senha em Perfil, nome, créditos) | ✘ | ✘ |
+
+Nenhuma rota permite alterar a senha do Master por outra pessoa; não há recuperação por terceiros. Tentativas negadas gravam `HIERARCHY_DENIED` na auditoria. Se o Master esquecer a senha, só é possível redefini-la diretamente no painel do Supabase (Authentication → Users), por quem controla o projeto.
 
 ## 5. Operação
 
