@@ -8,8 +8,8 @@ import { activityView } from './views/activity.js';
 import { apiDocsView } from './views/apidocs.js';
 import { profileView } from './views/profile.js';
 import { accessView } from './views/access.js';
-import { storeView } from './views/store.js';
-import { salesView } from './views/sales.js';
+import { buyView } from './views/buy.js';
+import { creditsPanelView } from './views/creditsPanel.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -20,8 +20,8 @@ const NAV = [
   { path: 'users', label: () => 'Usuários', icon: 'users', view: usersView, admin: true },
   { path: 'generate', label: () => 'Gerar licença', icon: 'key', view: generateView },
   { path: 'licenses', label: (u) => (isStaff(u) ? 'Todas as licenças' : 'Minhas licenças'), icon: 'list', view: licensesView },
-  { path: 'store', label: () => 'Loja de créditos', icon: 'cart', view: storeView },
-  { path: 'sales', label: () => 'Vendas', icon: 'receipt', view: salesView, master: true },
+  { path: 'comprar', label: () => 'COMPRAR CRÉDITOS', icon: 'cart', view: buyView },
+  { path: 'painel-creditos', label: () => 'PAINEL CRÉDITOS', icon: 'receipt', view: creditsPanelView, master: true },
   { path: 'activity', label: () => 'Atividades', icon: 'activity', view: activityView, admin: true },
   { path: 'access', label: () => 'Histórico de acessos', icon: 'globe', view: accessView, admin: true },
   { path: 'api', label: () => 'API', icon: 'code', view: apiDocsView },

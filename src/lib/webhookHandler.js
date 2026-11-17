@@ -1,14 +1,14 @@
 const crypto = require('crypto');
-const config = require('../config');
+const { getPaymentConfig } = require('./paymentSettings');
 const { getAdmin } = require('./supabase');
 const { reconcilePayment } = require('./payments');
 const { logActivity } = require('./activity');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function tokenOk(given) {
+function tokenOk(given, secret) {
   const a = Buffer.from(String(given ?? ''));
-  const b = Buffer.from(config.mistic.webhookSecret || '');
+  const b = Buffer.from(secret || '');
   return b.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
@@ -18,7 +18,8 @@ function tokenOk(given) {
  * Duplicatas são seguras (confirm_payment é idempotente).
  */
 async function handleMisticWebhook(req, res) {
-  if (!tokenOk(req.query.token)) return res.status(401).json({ ok: false });
+  const cfg = await getPaymentConfig();
+  if (!tokenOk(req.query.token, cfg.webhookSecret)) return res.status(401).json({ ok: false });
   const body = req.body || {};
   if (body.event === 'INFRACTION') return res.json({ ok: true, ignored: 'infraction' });
 

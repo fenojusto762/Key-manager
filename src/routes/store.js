@@ -6,48 +6,41 @@ const { getAdmin } = require('../lib/supabase');
 const { parse, schemas } = require('../lib/validation');
 const { normalizeCpf, maskCpf } = require('../lib/cpf');
 const { createPixCharge } = require('../lib/mistic');
+const { getPaymentConfig } = require('../lib/paymentSettings');
 const { reconcilePayment, getPaymentRaw, PUBLIC_COLS } = require('../lib/payments');
 const { logActivity } = require('../lib/activity');
 const { checkoutLimiter } = require('../middleware/security');
 
-const router = express.Router();
-const PKG_COLS = 'id, name, description, credits, price_cents, sort_order';
+const router = express.Router(); // COMPRAR CRÉDITOS
 const MAX_OPEN_PENDING = 3;
 
-// GET /api/store/packages — pacotes ativos + saldo
+// GET /api/store/config — preço fixo, limites, saldo e disponibilidade
 router.get(
-  '/packages',
+  '/config',
   asyncHandler(async (req, res) => {
-    const { data, error } = await getAdmin()
-      .from('credit_packages')
-      .select(PKG_COLS)
-      .eq('active', true)
-      .order('sort_order', { ascending: true })
-      .order('price_cents', { ascending: true });
-    if (error) throwDb(error);
-    res.json({ packages: data, balance: req.user.credits, payments_enabled: config.mistic.configured });
+    const cfg = await getPaymentConfig();
+    res.json({
+      price_cents: config.credits.priceCents,
+      min: config.credits.min,
+      max: config.credits.max,
+      balance: req.user.credits,
+      payments_enabled: cfg.configured,
+    });
   })
 );
 
-// POST /api/store/checkout { package_id, payer_name, payer_document } — gera cobrança PIX
+// POST /api/store/checkout { credits, payer_name, payer_document } — gera a cobrança Pix
 router.post(
   '/checkout',
   checkoutLimiter,
   asyncHandler(async (req, res) => {
-    const body = parse(schemas.checkout, req.body);
-    if (!config.mistic.configured) {
-      throw new AppError(503, 'PAYMENTS_NOT_CONFIGURED', 'Pagamentos temporariamente indisponíveis.');
-    }
+    const body = parse(schemas.checkout, req.body); // preço enviado pelo navegador é ignorado
+    const cfg = await getPaymentConfig();
+    if (!cfg.configured) throw new AppError(503, 'PAYMENTS_NOT_CONFIGURED', 'Pagamentos temporariamente indisponíveis.');
     const cpf = normalizeCpf(body.payer_document);
     if (!cpf) throw new AppError(400, 'VALIDATION_ERROR', 'CPF inválido. Confira os números.');
 
     const admin = getAdmin();
-    const { data: pkg, error: pkgErr } = await admin
-      .from('credit_packages').select(`${PKG_COLS}, active`).eq('id', body.package_id).maybeSingle();
-    if (pkgErr) throwDb(pkgErr);
-    if (!pkg || !pkg.active) throw new AppError(404, 'PACKAGE_NOT_FOUND', 'Pacote indisponível.');
-
-    // Limita cobranças abertas simultâneas (evita lotar o provedor/banco)
     const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count, error: cErr } = await admin
       .from('payments').select('id', { count: 'exact', head: true })
@@ -57,30 +50,25 @@ router.post(
       throw new AppError(429, 'TOO_MANY_PENDING', 'Você já tem pagamentos pendentes. Conclua ou aguarde-os expirar antes de gerar outro.');
     }
 
-    // O preço e a quantidade vêm SEMPRE do banco — nunca do navegador.
-    const id = crypto.randomUUID();
+    // Valor calculado SOMENTE aqui (e conferido por CHECK no banco): créditos × R$ 2,00.
+    const credits = body.credits;
+    const amountCents = credits * config.credits.priceCents;
+    const id = crypto.randomUUID(); // identificador único da transação (enviado como transactionId)
     const { error: insErr } = await admin.from('payments').insert({
-      id,
-      user_id: req.user.id,
-      username: req.user.username,
-      package_id: pkg.id,
-      package_name: pkg.name,
-      credits: pkg.credits,
-      amount_cents: pkg.price_cents,
-      payer_name: body.payer_name,
-      payer_document_masked: maskCpf(cpf),
+      id, user_id: req.user.id, username: req.user.username,
+      package_name: 'Créditos', credits, amount_cents: amountCents,
+      payer_name: body.payer_name, payer_document_masked: maskCpf(cpf),
     });
     if (insErr) throwDb(insErr);
 
     let charge;
     try {
       charge = await createPixCharge({
-        amount: pkg.price_cents / 100,
+        amount: amountCents / 100,
         payerName: body.payer_name,
         payerDocument: cpf,
-        description: `${pkg.credits} créditos - ${pkg.name}`.slice(0, 100),
+        description: `${credits} creditos`,
         transactionId: id,
-        webhookUrl: `${config.appUrl}/api/webhooks/mistic?token=${encodeURIComponent(config.mistic.webhookSecret)}`,
       });
     } catch (e) {
       await admin.from('payments').update({ status: 'REFUSED', provider_state: 'ERRO_CRIACAO' }).eq('id', id);
@@ -89,22 +77,17 @@ router.post(
 
     const { error: updErr } = await admin.from('payments').update({
       provider_tx_id: charge.providerTxId && charge.providerTxId !== id ? charge.providerTxId : null,
-      qr_code_base64: charge.qrCodeBase64,
-      qr_code_url: charge.qrCodeUrl,
-      copy_paste: charge.copyPaste,
+      qr_code_base64: charge.qrCodeBase64, qr_code_url: charge.qrCodeUrl, copy_paste: charge.copyPaste,
       provider_state: 'PENDENTE',
     }).eq('id', id);
     if (updErr) throwDb(updErr);
 
     await logActivity({
       actor: req.user, action: 'CHECKOUT_CREATED', target: req.user,
-      details: { payment_id: id, package: pkg.name, amount_cents: pkg.price_cents }, ip: req.ip,
+      details: { payment_id: id, credits, amount_cents: amountCents }, ip: req.ip,
     });
     res.status(201).json({
-      payment: {
-        id, status: 'PENDING', package_name: pkg.name, credits: pkg.credits, amount_cents: pkg.price_cents,
-        method: 'PIX', qr_code_base64: charge.qrCodeBase64, copy_paste: charge.copyPaste,
-      },
+      payment: { id, status: 'PENDING', credits, amount_cents: amountCents, method: 'PIX', qr_code_base64: charge.qrCodeBase64, copy_paste: charge.copyPaste },
     });
   })
 );
@@ -125,7 +108,7 @@ router.get(
   })
 );
 
-// GET /api/store/payments/:id — estado do pagamento (confere no provedor se ainda pendente)
+// GET /api/store/payments/:id — estado (confere no provedor se ainda pendente)
 router.get(
   '/payments/:id',
   asyncHandler(async (req, res) => {
@@ -138,7 +121,7 @@ router.get(
         await reconcilePayment(pay);
         pay = await getPaymentRaw(id);
       } catch (e) {
-        if (!(e instanceof AppError)) throw e; // falha temporária do provedor: segue com o estado atual
+        if (!(e instanceof AppError)) throw e;
       }
     }
     let balance = null;
@@ -146,7 +129,7 @@ router.get(
       const { data } = await getAdmin().from('profiles').select('credits').eq('id', req.user.id).single();
       balance = data?.credits ?? null;
     }
-    res.json({ payment: { id: pay.id, status: pay.status, credits: pay.credits, amount_cents: pay.amount_cents, package_name: pay.package_name }, balance });
+    res.json({ payment: { id: pay.id, status: pay.status, credits: pay.credits, amount_cents: pay.amount_cents }, balance });
   })
 );
 

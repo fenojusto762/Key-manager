@@ -185,25 +185,28 @@ Regras: não é possível suspender/excluir a si mesmo nem o último administrad
 
 ---
 
-## 5.1 Loja (autenticado)
+## 5.1 COMPRAR CRÉDITOS (autenticado)
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/api/store/packages` | Pacotes ativos, saldo e `payments_enabled` |
-| POST | `/api/store/checkout` | `{ package_id, payer_name, payer_document }` → cobrança Pix (`qr_code_base64`, `copy_paste`) |
+| GET | `/api/store/config` | `price_cents` (200), `min`, `max`, saldo e `payments_enabled` |
+| POST | `/api/store/checkout` | `{ credits, payer_name, payer_document }` → cobrança Pix (`qr_code_base64`, `copy_paste`). O valor é calculado no servidor |
 | GET | `/api/store/payments` | Histórico de compras do próprio usuário |
 | GET | `/api/store/payments/:id` | Estado do pagamento (confere no provedor se pendente) |
-| POST | `/api/webhooks/mistic?token=…` | Webhook da Mistic Pay (servidor→servidor) |
+| POST | `/api/webhooks/mistic?token=…` | Webhook da Mistic Pay (servidor→servidor; sempre reconferido na API do provedor) |
 
-## 5.2 Master — vendas (`/api/master`, somente MASTER)
+## 5.2 PAINEL CRÉDITOS (`/api/master`, somente MASTER)
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/api/master/sales/summary` | Faturamento, contagens por status, série diária, pacotes mais vendidos |
-| GET | `/api/master/sales?status&search&page&limit` | `status`: approved, pending, refused, refunded, flagged |
-| POST | `/api/master/sales/:id/reconcile` | Reconsulta o provedor (idempotente) |
-| GET | `/api/master/transactions?type&page&limit` | Extrato de créditos de todos |
-| GET/POST/PATCH/DELETE | `/api/master/packages[/:id]` | Gerenciar pacotes `{ name, description?, credits, price_cents, active, sort_order }` |
+| GET | `/api/master/credits/summary?from&to` | Indicadores do período (YYYY-MM-DD), série diária, maiores compradores |
+| GET | `/api/master/credits/payments?status&from&to&search&user_id&page&limit` | Transações (status: approved, pending, refused, refunded, flagged) com ID Mistic Pay |
+| GET | `/api/master/credits/buyers?search&page&limit` | Compradores com totais |
+| POST | `/api/master/credits/payments/:id/reconcile` | Reconsulta o provedor (idempotente) |
+| GET | `/api/master/credits/transactions?type&page&limit` | Extrato de créditos de todos |
+| GET / PUT | `/api/master/payment-settings` | Lê (mascarado) / salva `{ client_id?, client_secret? }` (vazio mantém) |
+| POST | `/api/master/payment-settings/test` | TESTAR CONEXÃO |
+| POST | `/api/master/payment-settings/rotate-webhook-secret` | Novo segredo do webhook |
 
 ## 6. Saúde
 

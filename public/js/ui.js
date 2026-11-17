@@ -337,9 +337,9 @@ export const ACTION_LABELS = {
   PAYMENT_CONFIRMED: ['pagamento confirmado pelo provedor', 'ok'],
   PAYMENT_REFUNDED: ['pagamento devolvido de', 'warn'],
   PAYMENT_RECONCILED: ['reconsultou um pagamento', ''],
-  PACKAGE_CREATED: ['criou um pacote de créditos', 'ok'],
-  PACKAGE_UPDATED: ['editou um pacote de créditos', ''],
-  PACKAGE_DELETED: ['removeu um pacote de créditos', 'warn'],
+  PAYMENT_SETTINGS_UPDATED: ['alterou as credenciais de pagamento', 'warn'],
+  PAYMENT_SETTINGS_TESTED: ['testou a conexão com a Mistic Pay', ''],
+  PAYMENT_WEBHOOK_SECRET_ROTATED: ['gerou novo segredo do webhook', 'warn'],
   PROFILE_UPDATED: ['atualizou o perfil', ''],
 };
 
@@ -353,8 +353,7 @@ export function describeActivity(a) {
   const d = a.details || {};
   if (a.action === 'LICENSES_GENERATED') extra = ` — ${fmtInt(d.quantity)} × ${fmtInt(d.duration_days)} dia(s), ${fmtInt(d.total_cost)} crédito(s)`;
   if (a.action === 'CREDITS_ADDED' || a.action === 'CREDITS_REMOVED') extra = ` — ${fmtInt(d.amount)} crédito(s)`;
-  if (a.action === 'CREDITS_PURCHASED') extra = ` — ${d.package}: ${fmtInt(d.credits)} crédito(s), ${fmtBRL(d.amount_cents)}`;
-  if (a.action.startsWith('PACKAGE_') && d.name) extra = ` — ${d.name}`;
+  if (a.action === 'CREDITS_PURCHASED') extra = ` — ${fmtInt(d.credits)} crédito(s), ${fmtBRL(d.amount_cents)}`;
   if (a.action === 'LICENSE_REVOKED' && d.code) extra = ` — ${d.code}`;
   if (a.action === 'USER_CREATED' && d.initial_credits) extra = ` — saldo inicial ${fmtInt(d.initial_credits)}`;
   const html = `<b>${esc(actor)}</b> ${esc(verb)}${target ? ` <b>${esc(target)}</b>` : ''}${esc(extra)}`;

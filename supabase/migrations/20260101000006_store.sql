@@ -1,5 +1,5 @@
 -- =============================================================================
--- KEY MANAGER — Migração 6: Loja de créditos + pagamentos (Mistic Pay)
+-- KEY MANAGER — Migração 6: pagamentos de créditos (Mistic Pay)
 -- Créditos só entram por confirm_payment(), que é idempotente (1 crédito por pagamento).
 -- =============================================================================
 
@@ -164,7 +164,7 @@ begin
 end;
 $$;
 
--- Resumo de vendas (Master) ------------------------------------------------------
+-- Resumo de vendas (substituído na migração 7) ------------------------------------------------------
 create or replace function public.sales_summary(p_days integer default 14, p_tz text default 'America/Sao_Paulo')
 returns jsonb
 language plpgsql
@@ -238,7 +238,7 @@ grant execute on function public.confirm_payment(uuid, text, integer, integer, t
 grant execute on function public.sales_summary(integer, text) to service_role;
 grant execute on function public.km_is_master() to authenticated, service_role;
 
--- Pacotes iniciais (o Master edita/remove na tela Vendas → Pacotes) --------------
+-- Pacotes iniciais (removidos na migração 7: preço fixo por crédito) --------------
 insert into public.credit_packages (name, description, credits, price_cents, sort_order)
 select * from (values
   ('Starter',  'Ideal para começar',          10,  1990, 1),

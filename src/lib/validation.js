@@ -65,25 +65,30 @@ const schemas = {
   }),
 
   checkout: z.object({
-    package_id: uuid,
+    // Quantidade escolhida pelo usuário; o PREÇO nunca é aceito do navegador (backend: credits × R$ 2,00).
+    credits: intIn('quantidade de créditos', 1, 10000),
     payer_name: text('o nome do pagador').trim().min(3, 'Informe o nome completo do pagador.').max(80),
     payer_document: text('o CPF').trim().min(11, 'CPF inválido.').max(20, 'CPF inválido.'),
   }),
 
-  packageBody: z.object({
-    name: text('o nome do pacote').trim().min(1, 'Informe o nome do pacote.').max(60, 'Nome muito longo (máx. 60).'),
-    description: z.string().trim().max(200, 'Descrição muito longa (máx. 200).').optional().default(''),
-    credits: intIn('créditos', 1, 1000000),
-    price_cents: intIn('preço (centavos)', 100, 100000000),
-    active: z.boolean().default(true),
-    sort_order: intIn('ordem', 0, 9999).default(0),
-  }),
-
   salesList: z.object({
     page: z.coerce.number().int().min(1).max(100000).default(1),
-    limit: z.coerce.number().int().min(1).max(100).default(20),
+    limit: z.coerce.number().int().min(1).max(100).default(15),
     status: z.enum(['approved', 'pending', 'refused', 'refunded', 'flagged']).optional().or(z.literal('').transform(() => undefined)),
     search: z.string().trim().max(64).optional(),
+    user_id: z.string().uuid().optional().or(z.literal('').transform(() => undefined)),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('').transform(() => undefined)),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('').transform(() => undefined)),
+  }),
+
+  periodQuery: z.object({
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('').transform(() => undefined)),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('').transform(() => undefined)),
+  }),
+
+  paymentSettings: z.object({
+    client_id: z.string().trim().max(200).optional(),
+    client_secret: z.string().trim().max(400).optional(),
   }),
 
   resetPassword: z.object({ password }),

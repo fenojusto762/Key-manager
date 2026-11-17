@@ -6,44 +6,63 @@ const { parse, schemas } = require('../lib/validation');
 const { sanitizeSearch } = require('../lib/license');
 const { logActivity } = require('../lib/activity');
 const { reconcilePayment, getPaymentRaw, PAYMENT_COLS } = require('../lib/payments');
+const settings = require('../lib/paymentSettings');
+const { testConnection } = require('../lib/mistic');
 
-const router = express.Router(); // montado atrás de authenticate + requireMaster
-const PKG_ALL = 'id, name, description, credits, price_cents, active, sort_order, created_at, updated_at';
+const router = express.Router(); // PAINEL CRÉDITOS — montado atrás de authenticate + requireMaster
 
-/* -------------------------------- Vendas ---------------------------------- */
+/* ----------------------------- Painel Créditos ---------------------------- */
 router.get(
-  '/sales/summary',
+  '/credits/summary',
   asyncHandler(async (req, res) => {
-    const { data, error } = await getAdmin().rpc('sales_summary', { p_days: 14, p_tz: config.timezone });
+    const { from, to } = parse(schemas.periodQuery, req.query);
+    const { data, error } = await getAdmin().rpc('credits_summary', { p_from: from ?? null, p_to: to ?? null, p_tz: config.timezone });
     if (error) throwDb(error);
-    res.json({ summary: data, payments_enabled: config.mistic.configured });
+    const cfg = await settings.getPaymentConfig();
+    res.json({ summary: data, payments_enabled: cfg.configured });
   })
 );
 
+// Transações: filtros por status, período, usuário e busca (usuário, pagador, id da transação, E2E)
 router.get(
-  '/sales',
+  '/credits/payments',
   asyncHandler(async (req, res) => {
-    const { page, limit, status, search } = parse(schemas.salesList, req.query);
-    const from = (page - 1) * limit;
+    const { page, limit, status, search, user_id, from, to } = parse(schemas.salesList, req.query);
+    const off = (page - 1) * limit;
     let q = getAdmin().from('payments').select(PAYMENT_COLS, { count: 'exact' })
       .order('created_at', { ascending: false }).order('id', { ascending: false })
-      .range(from, from + limit - 1);
+      .range(off, off + limit - 1);
     if (status === 'approved') q = q.eq('status', 'APPROVED');
     if (status === 'pending') q = q.eq('status', 'PENDING');
     if (status === 'refused') q = q.in('status', ['REFUSED', 'CANCELED']);
     if (status === 'refunded') q = q.eq('status', 'REFUNDED');
     if (status === 'flagged') q = q.not('flag', 'is', null);
+    if (user_id) q = q.eq('user_id', user_id);
+    // período em horário de Brasília (UTC-3), pela data de criação
+    if (from) q = q.gte('created_at', `${from}T00:00:00-03:00`);
+    if (to) q = q.lt('created_at', new Date(new Date(`${to}T00:00:00-03:00`).getTime() + 86400000).toISOString());
     const s = sanitizeSearch(search);
-    if (s) q = q.or(`username.ilike.%${s}%,package_name.ilike.%${s}%,payer_name.ilike.%${s}%`);
+    if (s) q = q.or(`username.ilike.%${s}%,payer_name.ilike.%${s}%,provider_tx_id.ilike.%${s}%,e2e.ilike.%${s}%`);
     const { data, error, count } = await q;
     if (error) throwDb(error);
     res.json({ items: data, page, limit, total: count ?? 0 });
   })
 );
 
-// POST /api/master/sales/:id/reconcile — reconsulta o provedor (idempotente)
+router.get(
+  '/credits/buyers',
+  asyncHandler(async (req, res) => {
+    const { page, limit, search } = parse(schemas.salesList, req.query);
+    const { data, error } = await getAdmin().rpc('credits_buyers', {
+      p_search: sanitizeSearch(search) || null, p_limit: limit, p_offset: (page - 1) * limit,
+    });
+    if (error) throwDb(error);
+    res.json({ items: data.items, total: data.total, page, limit });
+  })
+);
+
 router.post(
-  '/sales/:id/reconcile',
+  '/credits/payments/:id/reconcile',
   asyncHandler(async (req, res) => {
     const { id } = parse(schemas.idParam, req.params);
     const pay = await getPaymentRaw(id);
@@ -54,9 +73,8 @@ router.post(
   })
 );
 
-// GET /api/master/transactions?type&page&limit — extrato de créditos de TODOS os usuários
 router.get(
-  '/transactions',
+  '/credits/transactions',
   asyncHandler(async (req, res) => {
     const { page, limit } = parse(schemas.list, req.query);
     const type = ['LICENSE_PURCHASE', 'ADMIN_ADD', 'ADMIN_REMOVE', 'STORE_PURCHASE'].includes(req.query.type) ? req.query.type : null;
@@ -72,53 +90,54 @@ router.get(
   })
 );
 
-/* -------------------------------- Pacotes --------------------------------- */
+/* ------------------------ Configurações de pagamento ----------------------- */
 router.get(
-  '/packages',
+  '/payment-settings',
   asyncHandler(async (req, res) => {
-    const { data, error } = await getAdmin().from('credit_packages').select(PKG_ALL)
-      .order('sort_order', { ascending: true }).order('price_cents', { ascending: true });
-    if (error) throwDb(error);
-    res.json({ packages: data });
+    res.json({ settings: await settings.getPublicSettings() });
+  })
+);
+
+// PUT { client_id?, client_secret? } — campo vazio mantém o valor salvo; o segredo nunca volta nas respostas
+router.put(
+  '/payment-settings',
+  asyncHandler(async (req, res) => {
+    const body = parse(schemas.paymentSettings, req.body);
+    const clientId = body.client_id || '';
+    const clientSecret = body.client_secret || '';
+    if (clientId && clientId.length < 6) throw new AppError(400, 'VALIDATION_ERROR', 'Client ID muito curto.');
+    if (clientSecret && clientSecret.length < 6) throw new AppError(400, 'VALIDATION_ERROR', 'Client Secret muito curto.');
+    if (!config.encryptionKey || config.encryptionKey.length < 32) {
+      throw new AppError(503, 'ENCRYPTION_NOT_CONFIGURED', 'O servidor não tem APP_ENCRYPTION_KEY (mín. 32 caracteres). Cadastre na Vercel e faça redeploy.');
+    }
+    const r = await settings.saveCredentials({ clientId, clientSecret }, req.user.id);
+    if (r.missing) throw new AppError(400, 'VALIDATION_ERROR', 'Informe o Client ID e o Client Secret.');
+    await logActivity({
+      actor: req.user, action: 'PAYMENT_SETTINGS_UPDATED',
+      details: { client_id_changed: Boolean(clientId), client_secret_changed: Boolean(clientSecret) }, ip: req.ip,
+    });
+    res.json({ settings: await settings.getPublicSettings() });
   })
 );
 
 router.post(
-  '/packages',
+  '/payment-settings/test',
   asyncHandler(async (req, res) => {
-    const body = parse(schemas.packageBody, req.body);
-    const { data, error } = await getAdmin().from('credit_packages')
-      .insert({ ...body, description: body.description || null }).select(PKG_ALL).single();
-    if (error) throwDb(error);
-    await logActivity({ actor: req.user, action: 'PACKAGE_CREATED', details: { name: data.name, credits: data.credits, price_cents: data.price_cents }, ip: req.ip });
-    res.status(201).json({ package: data });
+    const cfg = await settings.getPaymentConfig();
+    const result = await testConnection(cfg);
+    if (cfg.source === 'database') await settings.recordTest(result.ok, result.message);
+    await logActivity({ actor: req.user, action: 'PAYMENT_SETTINGS_TESTED', details: { ok: result.ok }, ip: req.ip });
+    res.json({ result, settings: await settings.getPublicSettings() });
   })
 );
 
-router.patch(
-  '/packages/:id',
+router.post(
+  '/payment-settings/rotate-webhook-secret',
   asyncHandler(async (req, res) => {
-    const { id } = parse(schemas.idParam, req.params);
-    const body = parse(schemas.packageBody, req.body);
-    const { data, error } = await getAdmin().from('credit_packages')
-      .update({ ...body, description: body.description || null }).eq('id', id).select(PKG_ALL).maybeSingle();
-    if (error) throwDb(error);
-    if (!data) throw new AppError(404, 'PACKAGE_NOT_FOUND', 'Pacote não encontrado.');
-    await logActivity({ actor: req.user, action: 'PACKAGE_UPDATED', details: { name: data.name, credits: data.credits, price_cents: data.price_cents, active: data.active }, ip: req.ip });
-    res.json({ package: data });
-  })
-);
-
-// Pagamentos antigos guardam o nome/valor do pacote (snapshot), então excluir é seguro.
-router.delete(
-  '/packages/:id',
-  asyncHandler(async (req, res) => {
-    const { id } = parse(schemas.idParam, req.params);
-    const { data, error } = await getAdmin().from('credit_packages').delete().eq('id', id).select('name').maybeSingle();
-    if (error) throwDb(error);
-    if (!data) throw new AppError(404, 'PACKAGE_NOT_FOUND', 'Pacote não encontrado.');
-    await logActivity({ actor: req.user, action: 'PACKAGE_DELETED', details: { name: data.name }, ip: req.ip });
-    res.json({ ok: true });
+    const r = await settings.rotateWebhookSecret(req.user.id);
+    if (r.missing) throw new AppError(400, 'VALIDATION_ERROR', 'Salve o Client ID e o Client Secret antes.');
+    await logActivity({ actor: req.user, action: 'PAYMENT_WEBHOOK_SECRET_ROTATED', ip: req.ip });
+    res.json({ settings: await settings.getPublicSettings() });
   })
 );
 

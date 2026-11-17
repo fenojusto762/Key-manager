@@ -14,8 +14,9 @@ Frontend em HTML/CSS/JS (módulos ES, sem build), backend Node.js + Express, ban
 - Licenças: código aleatório de 80 bits (`XXXX-XXXX-XXXX-XXXX`), ATIVA/EXPIRADA/REVOGADA, copiar individual/todas, histórico.
 - API pública `POST /api/licenses/validate` com limite de requisições.
 - **Histórico de acessos** (admin): cada login e tentativa falha registra usuário, data/hora, IP, dispositivo, navegador e localização aproximada, com destaque para acessos suspeitos.
-- **Loja de créditos** com pacotes (Master cria/edita/remove), pagamento **Pix via Mistic Pay** (QR Code + copia e cola), confirmação por webhook **conferida na API do provedor** e créditos liberados uma única vez por pagamento (função `confirm_payment` idempotente + índice único).
-- **Vendas (Master)**: faturamento, pagamentos aprovados/pendentes/recusados, pacotes, extrato de todas as transações.
+- **COMPRAR CRÉDITOS**: o usuário escolhe a quantidade (R$ 2,00 por crédito, calculado no servidor e imposto por CHECK no banco), paga com **Pix via Mistic Pay** (QR Code + copia e cola) e recebe os créditos automaticamente após a confirmação, conferida na API do provedor (função `confirm_payment` idempotente + índice único).
+- **PAINEL CRÉDITOS (Master)**: faturamento, vendas, créditos vendidos, aprovados/pendentes, gráficos, filtros por período e status, compradores com histórico, ID da transação na Mistic Pay e extrato de créditos.
+- **CONFIGURAÇÕES DE PAGAMENTO (Master)**: Client ID/Secret da Mistic Pay salvos criptografados (AES-256-GCM) no banco, campos secretos mascarados, botões SALVAR e TESTAR CONEXÃO.
 - Botão flutuante de **suporte via WhatsApp** em todas as telas.
 - Auditoria completa (`activity_logs`) e extrato de créditos (`credit_transactions`).
 
@@ -46,7 +47,8 @@ key-manager/
    3. `supabase/migrations/20260101000003_rls.sql`
    4. `supabase/migrations/20260101000004_access_logs.sql` (histórico de acessos)
    5. `supabase/migrations/20260101000005_master_owner.sql` (Dono Master)
-   6. `supabase/migrations/20260101000006_store.sql` (loja e pagamentos)
+   6. `supabase/migrations/20260101000006_store.sql` (pagamentos)
+   7. `supabase/migrations/20260101000007_credit_price_settings.sql` (preço fixo, configurações de pagamento, Painel Créditos)
 
    (Alternativa com a CLI: `supabase link --project-ref SEU_REF && supabase db push`.)
 3. Em **Authentication → Providers → Email**: mantenha **Email habilitado**. Você pode **desativar “Confirm email”** e **“Allow new users to sign up”** (cadastro público desligado — contas são criadas só pelo admin, via API de administração). Nenhum e-mail é enviado: o “usuário” é mapeado internamente para `usuario@AUTH_EMAIL_DOMAIN`.
@@ -93,14 +95,15 @@ Entre com o administrador, crie usuários em **Usuários → Novo usuário** e a
 | Auditoria | Toda operação administrativa, login (inclusive falhas), geração e alteração de senha grava em `activity_logs`. |
 | Último admin | Trigger impede remover/suspender/rebaixar o último ADMIN ativo. |
 
-## 4.0 Mistic Pay (loja)
+## 4.0 Mistic Pay (COMPRAR CRÉDITOS)
 
-1. No painel da Mistic Pay: **API → Chaves de Acesso** → crie uma chave com os escopos `TRANSACTION_CREATE` e `TRANSACTION_READ` (ou use `ci`/`cs` de conta legada).
-2. Na Vercel, cadastre `MISTICPAY_CLIENT_ID`, `MISTICPAY_CLIENT_SECRET`, `MISTICPAY_WEBHOOK_SECRET` (aleatório, longo) e `APP_URL`, e faça redeploy. Se houver *IP allowlist* na chave, a Vercel usa IPs dinâmicos — deixe a lista vazia.
-3. O webhook é informado automaticamente em cada cobrança (`projectWebhook`): `APP_URL/api/webhooks/mistic?token=SEGREDO`. Não é preciso cadastrá-lo no painel.
-4. Segurança: preço e créditos vêm do banco (nunca do navegador); a Mistic Pay não assina webhooks, então o backend **sempre consulta `/transactions/check`** antes de creditar; o valor pago precisa ser igual ao preço; um índice único impede crédito duplicado; a tela também confere o pagamento por conta própria (polling), então não depende só do webhook.
-5. Só **Pix** está documentado pela Mistic Pay; outros métodos entram aqui se/quando o provedor os disponibilizar. Não há sandbox: valide com um pacote de valor baixo.
-6. Devoluções marcam o pagamento como *Devolvido* para revisão do Master; os créditos já liberados não são retirados automaticamente.
+1. Na Vercel cadastre `APP_ENCRYPTION_KEY` (aleatória, 32+ caracteres; não perca nem troque) e `APP_URL`, e faça redeploy.
+2. No painel da Mistic Pay: **API → Chaves de Acesso** → crie uma chave com os escopos `TRANSACTION_CREATE` e `TRANSACTION_READ` (ou use `ci`/`cs` de conta legada). Se houver *IP allowlist*, deixe vazia (a Vercel usa IPs variáveis).
+3. Entre como **Master** → **PAINEL CRÉDITOS → CONFIGURAÇÕES DE PAGAMENTO**: informe Client ID e Client Secret → **SALVAR** → **TESTAR CONEXÃO** (consulta uma transação inexistente: 404 = credenciais aceitas, 401 = inválidas, 403 = sem escopo).
+4. O webhook (`APP_URL/api/webhooks/mistic`) é enviado em cada cobrança com um segredo próprio, gerado automaticamente. Não é preciso cadastrar nada no painel da Mistic Pay.
+5. Segurança: preço = quantidade × R$ 2,00 calculado no servidor (o navegador só envia a quantidade; o banco recusa valor diferente); a Mistic Pay não assina webhooks, então o backend **sempre consulta `/transactions/check`** antes de creditar; o valor pago precisa ser igual ao cobrado; índice único impede crédito duplicado; a tela também confere o pagamento por conta própria. As credenciais ficam só no servidor e nunca são devolvidas pela API.
+6. A Mistic Pay documenta somente **Pix** (sem checkout hospedado, cartão ou boleto) e não tem sandbox: valide com 1 crédito (R$ 2,00).
+7. Devoluções marcam o pagamento como *Devolvido* para revisão; créditos já liberados não são retirados automaticamente.
 
 ## 4.1 Hierarquia (Master > Admin > Usuário)
 

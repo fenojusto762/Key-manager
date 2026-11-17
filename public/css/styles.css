@@ -442,16 +442,6 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 }
 
 /* ------------------------------ Loja / Pix -------------------------------- */
-.pkgs { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-.pkg { position: relative; padding: 22px 20px 20px; display: flex; flex-direction: column; gap: 6px; }
-.pkg--best { border-color: rgba(45,212,160,.4); box-shadow: 0 10px 40px -22px rgba(45,212,160,.5); }
-.pkg__tag { position: absolute; top: 14px; right: 14px; }
-.pkg__name { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-2); }
-.pkg__credits { font-size: 15px; color: var(--text-2); } .pkg__credits .num { font-size: 34px; font-weight: 700; color: var(--text); letter-spacing: -.03em; }
-.pkg__price { font-size: 22px; font-weight: 700; }
-.pkg__per { font-size: 12px; }
-.pkg__desc { margin: 4px 0 8px; color: var(--text-2); font-size: 13px; flex: 1; }
-.pkg .btn { margin-top: auto; }
 .pix__qr { display: block; width: 220px; max-width: 100%; margin: 0 auto; background: #fff; padding: 10px; border-radius: 12px; image-rendering: pixelated; }
 .pix__code { font-family: var(--mono); font-size: 11.5px; resize: none; word-break: break-all; }
 .pix__status { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 14px 0 0; color: var(--text-2); font-size: 13px; text-align: center; }
@@ -475,3 +465,38 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 .wa-fab svg { width: 28px; height: 28px; flex: none; }
 @media (max-width: 720px) { .wa-fab { right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: 54px; height: 54px; padding: 0; justify-content: center; } .wa-fab__label { display: none; } }
 .view { padding-bottom: 88px; }
+
+/* --------------------------- COMPRAR CRÉDITOS ----------------------------- */
+.buy { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.buy__main { padding: 24px; display: grid; gap: 14px; background: linear-gradient(160deg, rgba(47,107,255,.12), var(--surface) 55%); border-color: rgba(47,107,255,.28); }
+.buy__balance { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.buy__lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.buy__bal { font-size: 15px; color: var(--text-2); } .buy__bal .num { font-size: 30px; font-weight: 700; color: var(--text); letter-spacing: -.03em; }
+.buy__stepper .input { font-size: 26px; font-weight: 700; height: 56px; } .buy__stepper .btn { width: 56px; height: 56px; }
+.buy__quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { height: 36px; min-width: 52px; padding: 0 14px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line-2); color: var(--text-2); font-weight: 600; cursor: pointer; transition: all .2s var(--ease); }
+.chip:hover { color: var(--text); border-color: var(--accent); }
+.chip.is-active { background: var(--accent-soft); border-color: rgba(47,107,255,.6); color: #fff; }
+.buy__sum { padding: 22px; display: grid; gap: 14px; position: sticky; top: 76px; }
+.buy__row { display: flex; justify-content: space-between; gap: 12px; color: var(--text-2); }
+.buy__row b { color: var(--text); }
+.buy__total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.buy__total span { color: var(--text-2); } .buy__total b { font-size: 32px; letter-spacing: -.03em; color: #fff; }
+.buy__note { margin: 0; display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--muted); } .buy__note svg { width: 15px; height: 15px; flex: none; margin-top: 2px; }
+.btn--lg { height: 52px; font-size: 15px; letter-spacing: .06em; font-weight: 700; }
+.alert--ok { background: var(--ok-soft); border-color: rgba(45,212,160,.3); color: var(--ok); }
+@media (max-width: 860px) { .buy { grid-template-columns: 1fr; } .buy__sum { position: static; } }
+
+/* ----------------------------- PAINEL CRÉDITOS ---------------------------- */
+.tabs--scroll { overflow-x: auto; white-space: nowrap; scrollbar-width: none; } .tabs--scroll::-webkit-scrollbar { display: none; }
+.period { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+.period__custom { display: flex; gap: 8px; align-items: center; } .period__custom .input { width: 150px; }
+.seg--sm { grid-auto-flow: column; grid-auto-columns: auto; } .seg--sm button { padding: 7px 14px; } .seg--sm button b { font-size: 13px; }
+.code--btn { cursor: pointer; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text-2); }
+.code--btn:hover { color: #fff; border-color: var(--accent); }
+.conn { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-2); }
+.conn i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.conn--on { color: var(--ok); border-color: rgba(45,212,160,.35); background: var(--ok-soft); } .conn--on i { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.conn--off { color: var(--bad); border-color: rgba(255,93,108,.35); background: var(--bad-soft); } .conn--off i { background: var(--bad); }
+.cfg__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+@media (max-width: 720px) { .cfg__actions .btn { flex: 1 1 100%; } .period__custom .input { width: 100%; flex: 1; } }

@@ -5,50 +5,66 @@ const cpfMask = (v) => {
   const d = v.replace(/\D/g, '').slice(0, 11);
   return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
 };
+const QUICK = [1, 5, 10, 25, 50, 100];
 
-export async function storeView(root, ctx) {
+export async function buyView(root, ctx) {
   let page = 1;
   let seq = 0;
   const timers = new Set();
+  const cfg = await get('/store/config');
+  const price = cfg.price_cents;
+  const st = { qty: 10 };
 
   root.innerHTML = `
-    <div class="page-head"><div><h1>Loja de créditos</h1><p>Compre créditos com Pix. O saldo é liberado automaticamente após a confirmação do pagamento.</p></div>
-      <div class="page-head__actions"><span class="credit-pill" style="cursor:default">${icon('coins')}<span class="num" id="s-balance">${fmtInt(ctx.user.credits)}</span> créditos</span></div></div>
-    <div id="s-alert"></div>
-    <div class="grid pkgs" id="s-pkgs"><div class="skeleton" style="height:190px"></div><div class="skeleton" style="height:190px"></div><div class="skeleton" style="height:190px"></div></div>
+    <div class="page-head"><div><h1>COMPRAR CRÉDITOS</h1><p>Escolha a quantidade, pague com Pix e receba os créditos automaticamente.</p></div></div>
+    ${cfg.payments_enabled ? '' : `<div class="alert alert--warn" style="margin-bottom:16px">Os pagamentos estão temporariamente indisponíveis. Tente novamente mais tarde ou fale com o suporte.</div>`}
+    <div class="buy">
+      <div class="card buy__main">
+        <div class="buy__balance"><span class="buy__lbl">Seu saldo atual</span><span class="buy__bal"><span class="num" id="b-balance">${fmtInt(cfg.balance)}</span> créditos</span></div>
+        <label class="buy__lbl" for="b-qty">Quantos créditos você quer?</label>
+        <div class="stepper buy__stepper">
+          <button class="btn" type="button" id="b-minus" aria-label="Diminuir">${icon('minus')}</button>
+          <input class="input" id="b-qty" type="number" inputmode="numeric" min="${cfg.min}" max="${cfg.max}" step="1" value="${st.qty}" aria-label="Quantidade de créditos">
+          <button class="btn" type="button" id="b-plus" aria-label="Aumentar">${icon('plus')}</button>
+        </div>
+        <div class="buy__quick" id="b-quick">${QUICK.map((n) => `<button type="button" class="chip" data-q="${n}">${fmtInt(n)}</button>`).join('')}</div>
+        <small class="muted">De ${fmtInt(cfg.min)} a ${fmtInt(cfg.max)} créditos por compra.</small>
+      </div>
+      <div class="card buy__sum">
+        <div class="buy__row"><span>Quantidade selecionada</span><b class="num" id="s-qty">0</b></div>
+        <div class="buy__row"><span>Preço por crédito</span><b class="num">${fmtBRL(price)}</b></div>
+        <div class="buy__total"><span>Valor total</span><b class="num" id="s-total">R$ 0,00</b></div>
+        <button class="btn btn--primary btn--lg btn--block" type="button" id="b-pay" ${cfg.payments_enabled ? '' : 'disabled'}>PAGAR AGORA</button>
+        <p class="buy__note">${icon('lock')} Pagamento via Pix. Os créditos entram assim que o pagamento é confirmado.</p>
+      </div>
+    </div>
     <div class="card card--flush" style="margin-top:18px">
       <div class="card__head"><div class="card__title">Histórico de compras</div></div>
       <div id="s-hist"></div>
     </div>`;
 
-  const pkgsEl = root.querySelector('#s-pkgs');
+  const qtyEl = root.querySelector('#b-qty');
   const histEl = root.querySelector('#s-hist');
-  const setBalance = (n) => { root.querySelector('#s-balance').textContent = fmtInt(n); ctx.refreshUser().catch(() => {}); };
-
-  async function loadPackages() {
-    const data = await get('/store/packages');
-    if (!data.payments_enabled) {
-      root.querySelector('#s-alert').innerHTML = `<div class="alert alert--warn" style="margin-bottom:16px">Os pagamentos estão temporariamente indisponíveis. Tente novamente mais tarde ou fale com o suporte.</div>`;
-    }
-    if (!data.packages.length) {
-      pkgsEl.innerHTML = `<div class="card"><div class="empty">${icon('cart')}<strong>Nenhum pacote disponível</strong><span>Volte em breve.</span></div></div>`;
-      return;
-    }
-    const best = Math.min(...data.packages.map((p) => p.price_cents / p.credits));
-    pkgsEl.innerHTML = data.packages.map((p) => {
-      const per = p.price_cents / p.credits;
-      return `<div class="card pkg ${per === best && data.packages.length > 1 ? 'pkg--best' : ''}">
-        ${per === best && data.packages.length > 1 ? '<span class="badge badge--ok badge--plain pkg__tag">Melhor custo</span>' : ''}
-        <div class="pkg__name">${esc(p.name)}</div>
-        <div class="pkg__credits"><span class="num">${fmtInt(p.credits)}</span> créditos</div>
-        <div class="pkg__price">${fmtBRL(p.price_cents)}</div>
-        <div class="muted pkg__per">${fmtBRL(Math.round(per))} por crédito</div>
-        ${p.description ? `<p class="pkg__desc">${esc(p.description)}</p>` : ''}
-        <button class="btn btn--primary btn--block" type="button" data-buy="${esc(p.id)}" ${data.payments_enabled ? '' : 'disabled'}>${icon('cart')} Comprar</button>
-      </div>`;
-    }).join('');
-    pkgsEl._pkgs = new Map(data.packages.map((p) => [p.id, p]));
+  const clamp = (n) => Math.min(cfg.max, Math.max(cfg.min, Math.trunc(Number(n)) || cfg.min));
+  const validQty = () => {
+    const n = Number(qtyEl.value);
+    return Number.isInteger(n) && n >= cfg.min && n <= cfg.max ? n : null;
+  };
+  function refresh() {
+    const n = validQty();
+    root.querySelector('#s-qty').textContent = n ? fmtInt(n) : '—';
+    root.querySelector('#s-total').textContent = n ? fmtBRL(n * price) : '—';
+    root.querySelector('#b-pay').disabled = !n || !cfg.payments_enabled;
+    root.querySelectorAll('#b-quick .chip').forEach((c) => c.classList.toggle('is-active', Number(c.dataset.q) === n));
   }
+  qtyEl.addEventListener('input', () => { qtyEl.value = qtyEl.value.replace(/[^\d]/g, '').slice(0, 5); refresh(); });
+  qtyEl.addEventListener('blur', () => { qtyEl.value = clamp(qtyEl.value); refresh(); });
+  root.querySelector('#b-minus').addEventListener('click', () => { qtyEl.value = clamp((validQty() || cfg.min) - 1); refresh(); });
+  root.querySelector('#b-plus').addEventListener('click', () => { qtyEl.value = clamp((validQty() || cfg.min) + 1); refresh(); });
+  root.querySelector('#b-quick').addEventListener('click', (e) => { const c = e.target.closest('[data-q]'); if (c) { qtyEl.value = c.dataset.q; refresh(); } });
+  refresh();
+
+  const setBalance = (n) => { root.querySelector('#b-balance').textContent = fmtInt(n); ctx.refreshUser().catch(() => {}); };
 
   async function loadHistory() {
     const my = ++seq;
@@ -60,34 +76,36 @@ export async function storeView(root, ctx) {
     if (my !== seq) return;
     if (!data.items.length) { histEl.innerHTML = `<div class="empty">${icon('receipt')}<strong>Nenhuma compra ainda</strong><span>Suas compras aparecerão aqui.</span></div>`; return; }
     histEl.innerHTML = `<div class="table-wrap"><table class="table stack">
-      <thead><tr><th>Data</th><th>Pacote</th><th class="right">Créditos</th><th class="right">Valor</th><th>Método</th><th>Status</th></tr></thead>
+      <thead><tr><th>Data</th><th class="right">Créditos</th><th class="right">Valor</th><th>Método</th><th>Status</th></tr></thead>
       <tbody>${data.items.map((p) => `<tr>
         <td class="cell-main nowrap"><div class="num">${esc(fmtDateTime(p.created_at))}</div><div class="muted" style="font-size:12px">${esc(relTime(p.created_at))}</div></td>
-        <td data-label="Pacote">${esc(p.package_name)}</td>
         <td data-label="Créditos" class="right num">${fmtInt(p.credits)}</td>
         <td data-label="Valor" class="right num">${fmtBRL(p.amount_cents)}</td>
         <td data-label="Método">${esc(p.method)}</td>
         <td data-label="Status">${payBadge(p.status)}</td></tr>`).join('')}</tbody></table></div>${pagerHtml({ page: data.page, limit: data.limit, total: data.total })}`;
   }
 
-  /* ---- fluxo de compra ---- */
-  function buyModal(pkg) {
-    const ctl = openModal({
-      title: `Comprar ${pkg.name}`,
-      html: `<div class="alert" style="margin-bottom:14px"><b>${fmtInt(pkg.credits)} créditos</b> por <b>${fmtBRL(pkg.price_cents)}</b> via Pix.</div>
+  /* ---- pagamento ---- */
+  function payerModal() {
+    const n = validQty();
+    if (!n) return;
+    openModal({
+      title: 'Dados do pagador',
+      html: `<div class="alert" style="margin-bottom:14px"><b>${fmtInt(n)} crédito${n > 1 ? 's' : ''}</b> por <b>${fmtBRL(n * price)}</b> via Pix.</div>
         <form id="b-form" novalidate autocomplete="off">
-          <label class="field"><span>Nome completo do pagador</span><input class="input" id="b-name" maxlength="80" autocomplete="name"></label>
+          <label class="field"><span>Nome completo do pagador</span><input class="input" id="b-name" maxlength="80" autocomplete="name" value="${esc(ctx.user.display_name || '')}"></label>
           <label class="field"><span>CPF do pagador</span><input class="input" id="b-cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"><small>Exigido pelo Pix. Guardamos apenas os 2 últimos dígitos.</small></label>
         </form>`,
       actions: [
         { label: 'Cancelar' },
         {
-          label: 'Gerar Pix', kind: 'primary',
+          label: 'Continuar', kind: 'primary',
           onClick: async (c) => {
             c.setError('');
             try {
+              // somente a QUANTIDADE vai ao servidor; o valor é calculado lá
               const { payment } = await post('/store/checkout', {
-                package_id: pkg.id,
+                credits: n,
                 payer_name: c.body.querySelector('#b-name').value.trim(),
                 payer_document: c.body.querySelector('#b-cpf').value,
               });
@@ -129,19 +147,19 @@ export async function storeView(root, ctx) {
     let tries = 0;
     const timer = setInterval(async () => {
       if (!ctl.el.isConnected || !root.isConnected) { clearInterval(timer); timers.delete(timer); return; }
-      if (++tries > 450) { clearInterval(timer); timers.delete(timer); return; } // ~30 min
+      if (++tries > 450) { clearInterval(timer); timers.delete(timer); return; }
       try {
         const r = await get(`/store/payments/${pay.id}`);
-        const st = r.payment.status;
-        if (st === 'APPROVED') {
+        const s = r.payment.status;
+        if (s === 'APPROVED') {
           clearInterval(timer); timers.delete(timer);
           ctl.body.querySelector('#pix-wait').innerHTML = `<div class="pix__done">${icon('check')}<h3>Pagamento confirmado!</h3><p>${fmtInt(r.payment.credits)} créditos adicionados. Novo saldo: <b>${fmtInt(r.balance)}</b>.</p></div>`;
           setBalance(r.balance);
           loadHistory();
           toast('Pagamento confirmado! Créditos adicionados.', 'ok');
-        } else if (st !== 'PENDING') {
+        } else if (s !== 'PENDING') {
           clearInterval(timer); timers.delete(timer);
-          ctl.body.querySelector('#pix-status').innerHTML = `Pagamento ${st === 'REFUSED' ? 'recusado' : 'encerrado'}. Gere um novo Pix para tentar de novo.`;
+          ctl.body.querySelector('#pix-status').innerHTML = `Pagamento ${s === 'REFUSED' ? 'recusado' : 'encerrado'}. Gere um novo Pix para tentar de novo.`;
           loadHistory();
         }
       } catch { /* tenta de novo no próximo ciclo */ }
@@ -149,17 +167,12 @@ export async function storeView(root, ctx) {
     timers.add(timer);
   }
 
-  pkgsEl.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-buy]');
-    if (!b) return;
-    const pkg = pkgsEl._pkgs?.get(b.dataset.buy);
-    if (pkg) buyModal(pkg);
-  });
+  root.querySelector('#b-pay').addEventListener('click', payerModal);
   histEl.addEventListener('click', (e) => {
     const pg = e.target.closest('[data-page]');
     if (pg && !pg.disabled) { page = Number(pg.dataset.page); loadHistory(); }
   });
 
-  await Promise.all([loadPackages(), loadHistory()]);
+  await loadHistory();
   return () => { timers.forEach(clearInterval); timers.clear(); };
 }

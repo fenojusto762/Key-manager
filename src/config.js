@@ -36,7 +36,13 @@ const config = {
 
   maxLicensesPerRequest: 100,
 
-  // Loja / Mistic Pay — credenciais SOMENTE no servidor (variáveis de ambiente).
+  // COMPRAR CRÉDITOS — preço fixo dos créditos (centavos). O banco também impõe: amount_cents = credits * 200.
+  credits: { priceCents: 200, min: 1, max: 10000 },
+
+  // Chave que criptografa as credenciais salvas no banco (AES-256-GCM). Defina APP_ENCRYPTION_KEY (32+ caracteres).
+  encryptionKey: str('APP_ENCRYPTION_KEY'),
+
+  // Mistic Pay — valores de ambiente servem de reserva; o Master configura pela tela "Configurações de pagamento".
   appUrl: (str('APP_URL') || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')).replace(/\/+$/, ''),
   mistic: {
     baseUrl: str('MISTICPAY_BASE_URL', 'https://api.misticpay.com').replace(/\/+$/, ''),
@@ -46,8 +52,6 @@ const config = {
     timeoutMs: int('MISTICPAY_TIMEOUT_MS', 12000),
   },
 };
-
-config.mistic.configured = Boolean(config.mistic.clientId && config.mistic.clientSecret && config.mistic.webhookSecret && config.appUrl);
 
 config.missing = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'].filter(
   (k) => !process.env[k] || !String(process.env[k]).trim()

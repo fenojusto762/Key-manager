@@ -3,7 +3,7 @@ const { throwDb } = require('./errors');
 const { checkTransaction } = require('./mistic');
 
 const PAYMENT_COLS =
-  'id, user_id, username, package_id, package_name, credits, amount_cents, method, status, provider_state, payer_name, payer_document_masked, fee_cents, e2e, flag, credited_at, paid_at, created_at';
+  'id, user_id, username, package_name, credits, amount_cents, method, status, provider_tx_id, provider_state, payer_name, payer_document_masked, fee_cents, e2e, flag, credited_at, paid_at, created_at';
 const PUBLIC_COLS = 'id, package_name, credits, amount_cents, method, status, paid_at, created_at';
 
 /** O valor pago pode vir em reais (19.9) ou centavos (1990): aceitamos o que bate com o preço. */
@@ -36,7 +36,7 @@ async function reconcilePayment(payment, { e2e = null } = {}) {
 }
 
 async function getPaymentRaw(id) {
-  const { data, error } = await getAdmin().from('payments').select(`${PAYMENT_COLS}, provider_tx_id`).eq('id', id).maybeSingle();
+  const { data, error } = await getAdmin().from('payments').select(PAYMENT_COLS).eq('id', id).maybeSingle();
   if (error) throwDb(error);
   return data;
 }

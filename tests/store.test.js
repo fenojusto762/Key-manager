@@ -8,7 +8,8 @@ const supaPath = require.resolve('../src/lib/supabase');
 const supa = { getAdmin: () => { throw new Error('não configurado'); }, newAnonClient: () => ({}) };
 require.cache[supaPath] = { id: supaPath, filename: supaPath, loaded: true, exports: supa, children: [], paths: [] };
 const config = require('../src/config');
-Object.assign(config.mistic, { clientId: 'ci_test', clientSecret: 'cs_test', webhookSecret: 'segredo-123', configured: true });
+Object.assign(config.mistic, { clientId: 'ci_test', clientSecret: 'cs_test', webhookSecret: 'segredo-123' });
+config.encryptionKey = 'k'.repeat(40);
 config.appUrl = 'https://app.test';
 
 const { normalizeCpf, maskCpf } = require('../src/lib/cpf');
@@ -30,24 +31,45 @@ test('paidCents aceita reais ou centavos e rejeita valor diferente', () => {
 });
 
 test('Mistic: cabeçalhos legados ci/cs e Basic para pk_/sk_', () => {
-  assert.deepEqual(mistic.authHeaders(), { ci: 'ci_test', cs: 'cs_test' });
-  config.mistic.clientId = 'pk_abc'; config.mistic.clientSecret = 'sk_def';
-  assert.equal(mistic.authHeaders().Authorization, 'Basic ' + Buffer.from('pk_abc:sk_def').toString('base64'));
-  config.mistic.clientId = 'ci_test'; config.mistic.clientSecret = 'cs_test';
+  assert.deepEqual(mistic.authHeaders({ clientId: 'ci_test', clientSecret: 'cs_test' }), { ci: 'ci_test', cs: 'cs_test' });
+  assert.equal(mistic.authHeaders({ clientId: 'pk_abc', clientSecret: 'sk_def' }).Authorization, 'Basic ' + Buffer.from('pk_abc:sk_def').toString('base64'));
 });
 
-test('Mistic: cria cobrança com o payload correto e normaliza o QR', async () => {
+test('Criptografia das credenciais: ida e volta, falha com adulteração, máscara', () => {
+  const { encrypt, decrypt, mask } = require('../src/lib/secrets');
+  const blob = encrypt('sk_super_secreto');
+  assert.ok(!blob.includes('sk_super_secreto'));
+  assert.equal(decrypt(blob), 'sk_super_secreto');
+  assert.notEqual(encrypt('x'), encrypt('x'), 'IV aleatório');
+  const bad = blob.slice(0, -4) + 'AAAA';
+  assert.throws(() => decrypt(bad));
+  assert.equal(mask('pk_1234567890'), 'pk_1••••••90');
+  assert.equal(mask('curto'), '••••••••');
+  assert.ok(!mask('sk_super_secreto').includes('super'));
+});
+
+test('Mistic: cria cobrança com payload correto, webhook com segredo e QR normalizado', async () => {
   let seen;
   mistic.setFetch(async (url, opts) => {
     seen = { url, body: JSON.parse(opts.body), headers: opts.headers };
     return { ok: true, status: 200, json: async () => ({ data: { transactionId: 'T1', qrCodeBase64: 'AAA', copyPaste: '000201...' } }) };
   });
-  const r = await mistic.createPixCharge({ amount: 19.9, payerName: 'Fulano', payerDocument: '52998224725', description: 'd', transactionId: 'id1', webhookUrl: 'https://app.test/hook' });
+  const r = await mistic.createPixCharge({ amount: 20, payerName: 'Fulano', payerDocument: '52998224725', description: 'd', transactionId: 'id1' });
   assert.equal(seen.url, 'https://api.misticpay.com/api/transactions/create');
-  assert.equal(seen.body.amount, 19.9);
-  assert.equal(seen.body.projectWebhook, 'https://app.test/hook');
+  assert.equal(seen.body.amount, 20);
+  assert.equal(seen.body.projectWebhook, 'https://app.test/api/webhooks/mistic?token=segredo-123');
   assert.equal(seen.headers.ci, 'ci_test');
   assert.deepEqual(r, { providerTxId: 'T1', qrCodeBase64: 'AAA', qrCodeUrl: null, copyPaste: '000201...' });
+});
+
+test('Testar conexão: 404=ativa, 401=inválida, 403=sem escopo; sem vazar segredo', async () => {
+  const cfg = { clientId: 'ci_test', clientSecret: 'cs_secreto', baseUrl: 'https://api.misticpay.com', timeoutMs: 1000 };
+  const reply = (status, data = {}) => mistic.setFetch(async () => ({ ok: status < 400, status, json: async () => data }));
+  reply(404, { code: 'TRANSACTION_NOT_FOUND' }); assert.equal((await mistic.testConnection(cfg)).ok, true);
+  reply(401, { code: 'INVALID_API_CREDENTIAL' }); const bad = await mistic.testConnection(cfg);
+  assert.equal(bad.ok, false); assert.ok(!JSON.stringify(bad).includes('cs_secreto'));
+  reply(403, { code: 'API_SCOPE_DENIED' }); assert.match((await mistic.testConnection(cfg)).message, /escopo/);
+  assert.equal((await mistic.testConnection({ ...cfg, clientSecret: '' })).ok, false);
 });
 
 test('Mistic: erro do provedor vira 502 sem vazar detalhes', async () => {
