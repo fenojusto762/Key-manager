@@ -14,7 +14,7 @@ Frontend em HTML/CSS/JS (módulos ES, sem build), backend Node.js + Express, ban
 - Licenças: código aleatório de 80 bits (`XXXX-XXXX-XXXX-XXXX`), ATIVA/EXPIRADA/REVOGADA, copiar individual/todas, histórico.
 - API pública `POST /api/licenses/validate` com limite de requisições.
 - **Histórico de acessos** (admin): cada login e tentativa falha registra usuário, data/hora, IP, dispositivo, navegador e localização aproximada, com destaque para acessos suspeitos.
-- **COMPRAR CRÉDITOS**: o usuário escolhe a quantidade (R$ 2,00 por crédito, calculado no servidor e imposto por CHECK no banco), paga com **Pix via Mistic Pay** (QR Code + copia e cola) e recebe os créditos automaticamente após a confirmação, conferida na API do provedor (função `confirm_payment` idempotente + índice único).
+- **COMPRAR CRÉDITOS**: o usuário escolhe a quantidade (mínimo 5 créditos = R$ 10,00; R$ 2,00 por crédito, calculado no servidor e imposto por CHECK no banco), paga com **Pix via Mistic Pay** (QR Code + copia e cola) e recebe os créditos automaticamente após a confirmação, conferida na API do provedor (função `confirm_payment` idempotente + índice único).
 - **PAINEL CRÉDITOS (Master)**: faturamento, vendas, créditos vendidos, aprovados/pendentes, gráficos, filtros por período e status, compradores com histórico, ID da transação na Mistic Pay e extrato de créditos.
 - **CONFIGURAÇÕES DE PAGAMENTO (Master)**: Client ID/Secret da Mistic Pay salvos criptografados (AES-256-GCM) no banco, campos secretos mascarados, botões SALVAR e TESTAR CONEXÃO.
 - Botão flutuante de **suporte via WhatsApp** em todas as telas.
@@ -102,7 +102,7 @@ Entre com o administrador, crie usuários em **Usuários → Novo usuário** e a
 3. Entre como **Master** → **PAINEL CRÉDITOS → CONFIGURAÇÕES DE PAGAMENTO**: informe Client ID e Client Secret → **SALVAR** → **TESTAR CONEXÃO** (consulta uma transação inexistente: 404 = credenciais aceitas, 401 = inválidas, 403 = sem escopo).
 4. O webhook (`APP_URL/api/webhooks/mistic`) é enviado em cada cobrança com um segredo próprio, gerado automaticamente. Não é preciso cadastrar nada no painel da Mistic Pay.
 5. Segurança: preço = quantidade × R$ 2,00 calculado no servidor (o navegador só envia a quantidade; o banco recusa valor diferente); a Mistic Pay não assina webhooks, então o backend **sempre consulta `/transactions/check`** antes de creditar; o valor pago precisa ser igual ao cobrado; índice único impede crédito duplicado; a tela também confere o pagamento por conta própria. As credenciais ficam só no servidor e nunca são devolvidas pela API.
-6. A Mistic Pay documenta somente **Pix** (sem checkout hospedado, cartão ou boleto) e não tem sandbox: valide com 1 crédito (R$ 2,00).
+6. A Mistic Pay documenta somente **Pix** (sem checkout hospedado, cartão ou boleto) e não tem sandbox: valide com a compra mínima (5 créditos = R$ 10,00).
 7. Devoluções marcam o pagamento como *Devolvido* para revisão; créditos já liberados não são retirados automaticamente.
 
 ## 4.1 Hierarquia (Master > Admin > Usuário)

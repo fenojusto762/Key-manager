@@ -131,3 +131,9 @@ test('Webhook: segredo, ignora desconhecidos e credita via confirm_payment (veri
     assert.equal(args.p_e2e, 'E123');
   } finally { server.close(); }
 });
+
+test('compra mínima: config exige 5 créditos (R$ 10,00) a R$ 2,00 cada', () => {
+  assert.equal(config.credits.min, 5);
+  assert.equal(config.credits.min * config.credits.priceCents, 1000);
+  assert.match(require('fs').readFileSync(require.resolve('../src/lib/validation'), 'utf8'), /\.min\(5, 'A compra mínima/);
+});

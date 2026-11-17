@@ -66,7 +66,11 @@ const schemas = {
 
   checkout: z.object({
     // Quantidade escolhida pelo usuário; o PREÇO nunca é aceito do navegador (backend: credits × R$ 2,00).
-    credits: intIn('quantidade de créditos', 1, 10000),
+    credits: z.coerce
+      .number({ invalid_type_error: 'Quantidade inválida.', required_error: 'Informe a quantidade de créditos.' })
+      .int('A quantidade deve ser um número inteiro.')
+      .min(5, 'A compra mínima é de 5 créditos (R$ 10,00).')
+      .max(10000, 'A compra máxima é de 10.000 créditos por vez.'),
     payer_name: text('o nome do pagador').trim().min(3, 'Informe o nome completo do pagador.').max(80),
     payer_document: text('o CPF').trim().min(11, 'CPF inválido.').max(20, 'CPF inválido.'),
   }),

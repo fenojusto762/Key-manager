@@ -500,3 +500,6 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 .conn--off { color: var(--bad); border-color: rgba(255,93,108,.35); background: var(--bad-soft); } .conn--off i { background: var(--bad); }
 .cfg__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 @media (max-width: 720px) { .cfg__actions .btn { flex: 1 1 100%; } .period__custom .input { width: 100%; flex: 1; } }
+
+.buy__min { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--warn-soft); border: 1px solid rgba(245,181,61,.3); color: #f7c966; font-size: 13px; }
+.buy__min svg { width: 16px; height: 16px; flex: none; margin-top: 2px; } .buy__min.is-bad { background: var(--bad-soft); border-color: rgba(255,93,108,.4); color: var(--bad); }

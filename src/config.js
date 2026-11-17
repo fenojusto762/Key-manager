@@ -37,7 +37,7 @@ const config = {
   maxLicensesPerRequest: 100,
 
   // COMPRAR CRÉDITOS — preço fixo dos créditos (centavos). O banco também impõe: amount_cents = credits * 200.
-  credits: { priceCents: 200, min: 1, max: 10000 },
+  credits: { priceCents: 200, min: 5, max: 10000 }, // compra mínima: 5 créditos (R$ 10,00)
 
   // Chave que criptografa as credenciais salvas no banco (AES-256-GCM). Defina APP_ENCRYPTION_KEY (32+ caracteres).
   encryptionKey: str('APP_ENCRYPTION_KEY'),

@@ -5,7 +5,7 @@ const cpfMask = (v) => {
   const d = v.replace(/\D/g, '').slice(0, 11);
   return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
 };
-const QUICK = [1, 5, 10, 25, 50, 100];
+const QUICK = [5, 10, 25, 50, 100, 250];
 
 export async function buyView(root, ctx) {
   let page = 1;
@@ -13,7 +13,8 @@ export async function buyView(root, ctx) {
   const timers = new Set();
   const cfg = await get('/store/config');
   const price = cfg.price_cents;
-  const st = { qty: 10 };
+  const st = { qty: Math.max(10, cfg.min) };
+  const minTotal = fmtBRL(cfg.min * price);
 
   root.innerHTML = `
     <div class="page-head"><div><h1>COMPRAR CRÉDITOS</h1><p>Escolha a quantidade, pague com Pix e receba os créditos automaticamente.</p></div></div>
@@ -28,7 +29,7 @@ export async function buyView(root, ctx) {
           <button class="btn" type="button" id="b-plus" aria-label="Aumentar">${icon('plus')}</button>
         </div>
         <div class="buy__quick" id="b-quick">${QUICK.map((n) => `<button type="button" class="chip" data-q="${n}">${fmtInt(n)}</button>`).join('')}</div>
-        <small class="muted">De ${fmtInt(cfg.min)} a ${fmtInt(cfg.max)} créditos por compra.</small>
+        <div class="buy__min" id="b-min">${icon('alert')}<span><b>Compra mínima: ${fmtInt(cfg.min)} créditos (${minTotal}).</b> Máximo de ${fmtInt(cfg.max)} por compra.</span></div>
       </div>
       <div class="card buy__sum">
         <div class="buy__row"><span>Quantidade selecionada</span><b class="num" id="s-qty">0</b></div>
@@ -55,10 +56,11 @@ export async function buyView(root, ctx) {
     root.querySelector('#s-qty').textContent = n ? fmtInt(n) : '—';
     root.querySelector('#s-total').textContent = n ? fmtBRL(n * price) : '—';
     root.querySelector('#b-pay').disabled = !n || !cfg.payments_enabled;
+    root.querySelector('#b-min').classList.toggle('is-bad', !n && qtyEl.value !== '');
     root.querySelectorAll('#b-quick .chip').forEach((c) => c.classList.toggle('is-active', Number(c.dataset.q) === n));
   }
   qtyEl.addEventListener('input', () => { qtyEl.value = qtyEl.value.replace(/[^\d]/g, '').slice(0, 5); refresh(); });
-  qtyEl.addEventListener('blur', () => { qtyEl.value = clamp(qtyEl.value); refresh(); });
+  qtyEl.addEventListener('blur', () => { if (qtyEl.value !== '' && Number(qtyEl.value) < cfg.min) toast(`A compra mínima é de ${fmtInt(cfg.min)} créditos (${minTotal}).`, 'bad'); qtyEl.value = clamp(qtyEl.value); refresh(); });
   root.querySelector('#b-minus').addEventListener('click', () => { qtyEl.value = clamp((validQty() || cfg.min) - 1); refresh(); });
   root.querySelector('#b-plus').addEventListener('click', () => { qtyEl.value = clamp((validQty() || cfg.min) + 1); refresh(); });
   root.querySelector('#b-quick').addEventListener('click', (e) => { const c = e.target.closest('[data-q]'); if (c) { qtyEl.value = c.dataset.q; refresh(); } });
@@ -88,7 +90,7 @@ export async function buyView(root, ctx) {
   /* ---- pagamento ---- */
   function payerModal() {
     const n = validQty();
-    if (!n) return;
+    if (!n) { toast(`A compra mínima é de ${fmtInt(cfg.min)} créditos (${minTotal}).`, 'bad'); return; }
     openModal({
       title: 'Dados do pagador',
       html: `<div class="alert" style="margin-bottom:14px"><b>${fmtInt(n)} crédito${n > 1 ? 's' : ''}</b> por <b>${fmtBRL(n * price)}</b> via Pix.</div>

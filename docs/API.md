@@ -189,7 +189,7 @@ Regras: não é possível suspender/excluir a si mesmo nem o último administrad
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/api/store/config` | `price_cents` (200), `min`, `max`, saldo e `payments_enabled` |
+| GET | `/api/store/config` | `price_cents` (200), `min` (5), `max`, saldo e `payments_enabled` |
 | POST | `/api/store/checkout` | `{ credits, payer_name, payer_document }` → cobrança Pix (`qr_code_base64`, `copy_paste`). O valor é calculado no servidor |
 | GET | `/api/store/payments` | Histórico de compras do próprio usuário |
 | GET | `/api/store/payments/:id` | Estado do pagamento (confere no provedor se pendente) |
