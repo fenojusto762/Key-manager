@@ -78,6 +78,19 @@ const generateLimiter = makeLimiter({
   message: 'Muitas gerações em pouco tempo. Aguarde um instante.',
 });
 
+const checkoutLimiter = makeLimiter({
+  windowMs: 15 * MIN,
+  limit: 10,
+  keyGenerator: (req) => `checkout:${req.user?.id ?? 'anon'}`,
+  message: 'Muitas tentativas de compra. Aguarde alguns minutos.',
+});
+
+const webhookLimiter = makeLimiter({
+  windowMs: MIN,
+  limit: 300,
+  message: 'Limite excedido.',
+});
+
 const validateLimiter = makeLimiter({
   windowMs: MIN,
   limit: config.limits.validatePerMin,
@@ -92,4 +105,4 @@ const validateLimiter = makeLimiter({
   },
 });
 
-module.exports = { csrfGuard, publicCors, apiLimiter, loginLimiter, generateLimiter, validateLimiter };
+module.exports = { csrfGuard, publicCors, apiLimiter, loginLimiter, generateLimiter, validateLimiter, checkoutLimiter, webhookLimiter };

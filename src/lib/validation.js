@@ -64,6 +64,28 @@ const schemas = {
     credits: intIn('créditos iniciais', 0, 1000000).default(0),
   }),
 
+  checkout: z.object({
+    package_id: uuid,
+    payer_name: text('o nome do pagador').trim().min(3, 'Informe o nome completo do pagador.').max(80),
+    payer_document: text('o CPF').trim().min(11, 'CPF inválido.').max(20, 'CPF inválido.'),
+  }),
+
+  packageBody: z.object({
+    name: text('o nome do pacote').trim().min(1, 'Informe o nome do pacote.').max(60, 'Nome muito longo (máx. 60).'),
+    description: z.string().trim().max(200, 'Descrição muito longa (máx. 200).').optional().default(''),
+    credits: intIn('créditos', 1, 1000000),
+    price_cents: intIn('preço (centavos)', 100, 100000000),
+    active: z.boolean().default(true),
+    sort_order: intIn('ordem', 0, 9999).default(0),
+  }),
+
+  salesList: z.object({
+    page: z.coerce.number().int().min(1).max(100000).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    status: z.enum(['approved', 'pending', 'refused', 'refunded', 'flagged']).optional().or(z.literal('').transform(() => undefined)),
+    search: z.string().trim().max(64).optional(),
+  }),
+
   resetPassword: z.object({ password }),
 
   userRole: z.object({

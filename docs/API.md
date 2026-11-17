@@ -185,6 +185,26 @@ Regras: não é possível suspender/excluir a si mesmo nem o último administrad
 
 ---
 
+## 5.1 Loja (autenticado)
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/store/packages` | Pacotes ativos, saldo e `payments_enabled` |
+| POST | `/api/store/checkout` | `{ package_id, payer_name, payer_document }` → cobrança Pix (`qr_code_base64`, `copy_paste`) |
+| GET | `/api/store/payments` | Histórico de compras do próprio usuário |
+| GET | `/api/store/payments/:id` | Estado do pagamento (confere no provedor se pendente) |
+| POST | `/api/webhooks/mistic?token=…` | Webhook da Mistic Pay (servidor→servidor) |
+
+## 5.2 Master — vendas (`/api/master`, somente MASTER)
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/master/sales/summary` | Faturamento, contagens por status, série diária, pacotes mais vendidos |
+| GET | `/api/master/sales?status&search&page&limit` | `status`: approved, pending, refused, refunded, flagged |
+| POST | `/api/master/sales/:id/reconcile` | Reconsulta o provedor (idempotente) |
+| GET | `/api/master/transactions?type&page&limit` | Extrato de créditos de todos |
+| GET/POST/PATCH/DELETE | `/api/master/packages[/:id]` | Gerenciar pacotes `{ name, description?, credits, price_cents, active, sort_order }` |
+
 ## 6. Saúde
 
 `GET /api/health` → `{ "ok": true, "service": "key-manager", "time": "…" }` (`ok: false` se faltarem variáveis de ambiente).

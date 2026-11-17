@@ -87,6 +87,12 @@ const ICONS = {
   smartphone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
   tablet: '<rect x="4.5" y="3" width="15" height="18" rx="2.5"/><path d="M11 18h2"/>',
   alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  cart: '<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2.5l2.2 10.2a1 1 0 0 0 1 .8h8.8a1 1 0 0 0 1-.8L20 8H6.2"/>',
+  chat: '<path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.7-5.1A8.5 8.5 0 1 1 21 12z"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/>',
   pin: '<path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
 };
 
@@ -107,6 +113,14 @@ export const userStatusBadge = (status) =>
   status === 'ACTIVE'
     ? '<span class="badge badge--ok">Ativo</span>'
     : '<span class="badge badge--bad">Suspenso</span>';
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+export const fmtBRL = (cents) => BRL.format((Number(cents) || 0) / 100);
+export const TX_LABELS = { LICENSE_PURCHASE: 'Geração de licenças', ADMIN_ADD: 'Crédito adicionado', ADMIN_REMOVE: 'Crédito removido', STORE_PURCHASE: 'Compra de créditos' };
+const PAY_STATUS = {
+  PENDING: ['Pendente', 'warn'], APPROVED: ['Aprovado', 'ok'], REFUSED: ['Recusado', 'bad'],
+  CANCELED: ['Cancelado', 'muted'], REFUNDED: ['Devolvido', 'info'],
+};
+export const payBadge = (s) => { const [l, t] = PAY_STATUS[s] || [s, 'muted']; return `<span class="badge badge--${t}">${esc(l)}</span>`; };
 export const isStaff = (u) => u?.role === 'ADMIN' || u?.role === 'MASTER';
 export const roleBadge = (role) =>
   role === 'MASTER'
@@ -318,6 +332,14 @@ export const ACTION_LABELS = {
   LICENSE_REVOKED: ['revogou uma licença de', 'bad'],
   PASSWORD_CHANGED: ['alterou a própria senha', ''],
   PASSWORD_RESET: ['redefiniu a senha de', 'warn'],
+  CHECKOUT_CREATED: ['iniciou uma compra de créditos', ''],
+  CREDITS_PURCHASED: ['comprou créditos', 'ok'],
+  PAYMENT_CONFIRMED: ['pagamento confirmado pelo provedor', 'ok'],
+  PAYMENT_REFUNDED: ['pagamento devolvido de', 'warn'],
+  PAYMENT_RECONCILED: ['reconsultou um pagamento', ''],
+  PACKAGE_CREATED: ['criou um pacote de créditos', 'ok'],
+  PACKAGE_UPDATED: ['editou um pacote de créditos', ''],
+  PACKAGE_DELETED: ['removeu um pacote de créditos', 'warn'],
   PROFILE_UPDATED: ['atualizou o perfil', ''],
 };
 
@@ -331,6 +353,8 @@ export function describeActivity(a) {
   const d = a.details || {};
   if (a.action === 'LICENSES_GENERATED') extra = ` — ${fmtInt(d.quantity)} × ${fmtInt(d.duration_days)} dia(s), ${fmtInt(d.total_cost)} crédito(s)`;
   if (a.action === 'CREDITS_ADDED' || a.action === 'CREDITS_REMOVED') extra = ` — ${fmtInt(d.amount)} crédito(s)`;
+  if (a.action === 'CREDITS_PURCHASED') extra = ` — ${d.package}: ${fmtInt(d.credits)} crédito(s), ${fmtBRL(d.amount_cents)}`;
+  if (a.action.startsWith('PACKAGE_') && d.name) extra = ` — ${d.name}`;
   if (a.action === 'LICENSE_REVOKED' && d.code) extra = ` — ${d.code}`;
   if (a.action === 'USER_CREATED' && d.initial_credits) extra = ` — saldo inicial ${fmtInt(d.initial_credits)}`;
   const html = `<b>${esc(actor)}</b> ${esc(verb)}${target ? ` <b>${esc(target)}</b>` : ''}${esc(extra)}`;

@@ -1,7 +1,7 @@
 import { get, post, patch, del } from '../api.js';
 import {
   esc, icon, fmtInt, fmtDate, relTime, initials, debounce, pagerHtml, toast, openModal, confirmDialog,
-  userStatusBadge, roleBadge, describeActivity, licenseBadge,
+  userStatusBadge, roleBadge, describeActivity, licenseBadge, TX_LABELS,
 } from '../ui.js';
 
 const LIMIT = 15;
@@ -209,7 +209,7 @@ export async function usersView(root, ctx) {
         get(`/admin/users/${u.id}/transactions`, { limit: 10 }),
         get('/admin/licenses', { user_id: u.id, limit: 10 }),
       ]);
-      const txRows = tx.items.map((t) => `<tr><td data-label="Data" class="nowrap">${esc(fmtDate(t.created_at))}</td><td data-label="Operação">${esc({ LICENSE_PURCHASE: 'Geração de licenças', ADMIN_ADD: 'Crédito adicionado', ADMIN_REMOVE: 'Crédito removido' }[t.type] || t.type)}</td><td data-label="Valor" class="num right"><b style="color:var(${t.amount > 0 ? '--ok' : '--bad'})">${t.amount > 0 ? '+' : ''}${fmtInt(t.amount)}</b></td><td data-label="Saldo" class="num right">${fmtInt(t.balance_after)}</td></tr>`).join('');
+      const txRows = tx.items.map((t) => `<tr><td data-label="Data" class="nowrap">${esc(fmtDate(t.created_at))}</td><td data-label="Operação">${esc(TX_LABELS[t.type] || t.type)}</td><td data-label="Valor" class="num right"><b style="color:var(${t.amount > 0 ? '--ok' : '--bad'})">${t.amount > 0 ? '+' : ''}${fmtInt(t.amount)}</b></td><td data-label="Saldo" class="num right">${fmtInt(t.balance_after)}</td></tr>`).join('');
       ctl.body.innerHTML = `
         <dl class="kv" style="margin-bottom:18px">
           <dt>Nome</dt><dd>${esc(u.display_name || '—')}</dd>

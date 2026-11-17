@@ -24,6 +24,8 @@ const DB_ERRORS = {
   INVALID_AMOUNT: [400, 'Valor de créditos inválido.'],
   FORBIDDEN: [403, 'Acesso negado.'],
   LAST_ADMIN: [409, 'Não é possível remover ou suspender o último administrador ativo.'],
+  PACKAGE_NOT_FOUND: [404, 'Pacote não encontrado.'],
+  PAYMENT_NOT_FOUND: [404, 'Pagamento não encontrado.'],
   MASTER_PROTECTED: [403, 'A conta Master é protegida e não pode ser alterada por esta operação.'],
   HIERARCHY_FORBIDDEN: [403, 'Você não tem permissão sobre esta conta (hierarquia: Master > Admin > Usuário).'],
   ROLE_PROTECTED: [403, 'Funções só podem ser alteradas pelo Master.'],

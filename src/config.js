@@ -35,7 +35,19 @@ const config = {
   },
 
   maxLicensesPerRequest: 100,
+
+  // Loja / Mistic Pay — credenciais SOMENTE no servidor (variáveis de ambiente).
+  appUrl: (str('APP_URL') || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')).replace(/\/+$/, ''),
+  mistic: {
+    baseUrl: str('MISTICPAY_BASE_URL', 'https://api.misticpay.com').replace(/\/+$/, ''),
+    clientId: str('MISTICPAY_CLIENT_ID'),
+    clientSecret: str('MISTICPAY_CLIENT_SECRET'),
+    webhookSecret: str('MISTICPAY_WEBHOOK_SECRET'),
+    timeoutMs: int('MISTICPAY_TIMEOUT_MS', 12000),
+  },
 };
+
+config.mistic.configured = Boolean(config.mistic.clientId && config.mistic.clientSecret && config.mistic.webhookSecret && config.appUrl);
 
 config.missing = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'].filter(
   (k) => !process.env[k] || !String(process.env[k]).trim()

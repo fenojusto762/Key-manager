@@ -8,6 +8,8 @@ import { activityView } from './views/activity.js';
 import { apiDocsView } from './views/apidocs.js';
 import { profileView } from './views/profile.js';
 import { accessView } from './views/access.js';
+import { storeView } from './views/store.js';
+import { salesView } from './views/sales.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -18,13 +20,15 @@ const NAV = [
   { path: 'users', label: () => 'Usuários', icon: 'users', view: usersView, admin: true },
   { path: 'generate', label: () => 'Gerar licença', icon: 'key', view: generateView },
   { path: 'licenses', label: (u) => (isStaff(u) ? 'Todas as licenças' : 'Minhas licenças'), icon: 'list', view: licensesView },
+  { path: 'store', label: () => 'Loja de créditos', icon: 'cart', view: storeView },
+  { path: 'sales', label: () => 'Vendas', icon: 'receipt', view: salesView, master: true },
   { path: 'activity', label: () => 'Atividades', icon: 'activity', view: activityView, admin: true },
   { path: 'access', label: () => 'Histórico de acessos', icon: 'globe', view: accessView, admin: true },
   { path: 'api', label: () => 'API', icon: 'code', view: apiDocsView },
   { path: 'profile', label: () => 'Perfil', icon: 'user', view: profileView },
 ];
 
-const visibleNav = () => NAV.filter((n) => !n.admin || isStaff(state.user));
+const visibleNav = () => NAV.filter((n) => (!n.admin || isStaff(state.user)) && (!n.master || state.user?.role === 'MASTER'));
 
 /* ------------------------------ Contexto --------------------------------- */
 const ctx = {

@@ -6,11 +6,14 @@ const cookieParser = require('cookie-parser');
 const config = require('./config');
 const { errorHandler, AppError } = require('./lib/errors');
 const { csrfGuard, apiLimiter } = require('./middleware/security');
-const { authenticate, requireAdmin } = require('./middleware/auth');
+const { authenticate, requireAdmin, requireMaster } = require('./middleware/auth');
 
 const authRoutes = require('./routes/auth');
 const meRoutes = require('./routes/me');
 const adminRoutes = require('./routes/admin');
+const storeRoutes = require('./routes/store');
+const masterRoutes = require('./routes/master');
+const webhookRoutes = require('./routes/webhooks');
 const { publicRouter: publicLicenseRoutes, router: licenseRoutes } = require('./routes/licenses');
 
 const app = express();
@@ -50,11 +53,16 @@ app.get('/api/health', (req, res) => {
 // Endpoint PÚBLICO de validação (CORS aberto, sem cookies, limite próprio)
 app.use('/api/licenses', publicLicenseRoutes);
 
+// Webhook do provedor de pagamento (servidor→servidor, sem cookie/CSRF; protegido por segredo + conferência na API)
+app.use('/api/webhooks', webhookRoutes);
+
 // Daqui em diante: sessão por cookie + proteção CSRF + limite geral
 app.use('/api', csrfGuard, apiLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/me', authenticate, meRoutes);
 app.use('/api/licenses', authenticate, licenseRoutes);
+app.use('/api/store', authenticate, storeRoutes);
+app.use('/api/master', authenticate, requireMaster, masterRoutes); // somente o Master (conferido no banco)
 app.use('/api/admin', authenticate, requireAdmin, adminRoutes); // papel ADMIN/MASTER conferido no banco a cada requisição
 
 app.use('/api', (req, res, next) => next(new AppError(404, 'NOT_FOUND', 'Rota não encontrada.')));

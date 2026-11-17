@@ -1,5 +1,5 @@
 import { get, post } from '../api.js';
-import { esc, icon, fmtInt, fmtDate, toast, copyText, licenseBadge } from '../ui.js';
+import { esc, icon, fmtInt, fmtDate, toast, copyText, licenseBadge, TX_LABELS } from '../ui.js';
 
 export async function generateView(root, ctx) {
   const plans = ctx.plans;
@@ -114,7 +114,7 @@ export async function generateView(root, ctx) {
       el.innerHTML = items.length
         ? `<div class="table-wrap"><table class="table stack"><thead><tr><th>Data</th><th>Operação</th><th class="right">Créditos</th><th class="right">Saldo</th></tr></thead><tbody>${items.map((t) => `
             <tr><td data-label="Data" class="nowrap">${esc(fmtDate(t.created_at))}</td>
-            <td data-label="Operação">${esc(t.description || { LICENSE_PURCHASE: 'Geração de licenças', ADMIN_ADD: 'Crédito adicionado', ADMIN_REMOVE: 'Crédito removido' }[t.type])}</td>
+            <td data-label="Operação">${esc(t.description || TX_LABELS[t.type])}</td>
             <td data-label="Créditos" class="right num"><b style="color:var(${t.amount > 0 ? '--ok' : '--text'})">${t.amount > 0 ? '+' : ''}${fmtInt(t.amount)}</b></td>
             <td data-label="Saldo" class="right num">${fmtInt(t.balance_after)}</td></tr>`).join('')}</tbody></table></div>`
         : `<div class="empty">${icon('list')}<strong>Nenhuma movimentação ainda</strong></div>`;
